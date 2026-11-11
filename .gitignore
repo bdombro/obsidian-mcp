@@ -1,0 +1,7 @@
+build/
+/.ci/
+dist/
+bin/
+*.o
+*.gch
+.DS_Store
