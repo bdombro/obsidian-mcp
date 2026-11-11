@@ -1,0 +1,13 @@
+{
+  "name": "obsidian-mcp",
+  "owner": {
+    "name": "Brian Dombrowski"
+  },
+  "plugins": [
+    {
+      "name": "obsidian-mcp",
+      "source": ".",
+      "description": "Read, search, write, append, and rename notes in an Obsidian vault over MCP"
+    }
+  ]
+}

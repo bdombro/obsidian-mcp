@@ -45,7 +45,7 @@ endif()
 
 add_executable(obsidian-mcp src/main.cpp)
 target_include_directories(obsidian-mcp PRIVATE src)
-target_link_libraries(obsidian-mcp PRIVATE slimr::mcp app_options)
+target_link_libraries(obsidian-mcp PRIVATE slimr::mcp_http app_options)
 set_target_properties(obsidian-mcp PROPERTIES
     INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_SOURCE_DIR}/build/bin")
@@ -54,7 +54,7 @@ if(BUILD_TESTING)
     find_package(slimr-test CONFIG REQUIRED)
     add_executable(obsidian_mcp_test tests/test_main.cpp)
     target_include_directories(obsidian_mcp_test PRIVATE src)
-    target_link_libraries(obsidian_mcp_test PRIVATE slimr::mcp slimr::test app_options)
+    target_link_libraries(obsidian_mcp_test PRIVATE slimr::mcp_http slimr::test app_options)
     set_target_properties(obsidian_mcp_test PROPERTIES INTERPROCEDURAL_OPTIMIZATION_RELEASE ON)
     add_test(NAME obsidian_mcp COMMAND obsidian_mcp_test)
     set_tests_properties(obsidian_mcp PROPERTIES TIMEOUT 120

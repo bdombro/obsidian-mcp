@@ -2,6 +2,7 @@ build/
 /.ci/
 dist/
 bin/
+Formula/.staging/
 *.o
 *.gch
 .DS_Store

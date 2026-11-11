@@ -1,6 +1,12 @@
 #define SLIMR_TEST_MAIN
 #include "test.hpp"
 #include "app.hpp"
+#include <mcp_http.hpp>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <filesystem>
 #include <fstream>
@@ -8,6 +14,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace obsidian;
@@ -646,21 +653,36 @@ TEST_SUITE("app / mcp") {
         TestEnv configured("OBSIDIAN_CONVENTIONS_FILE", nullptr);
         auto app = make_obsidian_app();
 
-        // 1. initialize
-        Json initReq = Json::object_t{};
+        auto make_req = [](int id, std::string_view method, Json params = slimr::json_obj()) {
+            Json meta = slimr::json_obj();
+            meta["io.modelcontextprotocol/protocolVersion"] = std::string(slimr::kMcpProtocolVersion);
+            meta["io.modelcontextprotocol/clientCapabilities"] = slimr::json_obj();
+            params["_meta"] = std::move(meta);
+            Json req = slimr::json_obj();
+            req["jsonrpc"] = "2.0";
+            req["id"] = id;
+            req["method"] = std::string(method);
+            req["params"] = std::move(params);
+            return req;
+        };
+
+        // 1. legacy initialize rejected (-32601)
+        Json initReq = slimr::json_obj();
         initReq["jsonrpc"] = "2.0";
         initReq["id"] = 1;
         initReq["method"] = "initialize";
         Json initResp = app.dispatchMcpJson(initReq);
-        CHECK(initResp["result"]["serverInfo"]["name"].get<std::string>() == "obsidian-mcp");
-        CHECK(initResp["result"]["serverInfo"]["version"].get<std::string>() == "2.0.0");
+        CHECK(initResp["error"]["code"].get<int64_t>() == slimr::McpErrorCode::MethodNotFound);
 
-        // 2. tools/list
-        Json listReq = Json::object_t{};
-        listReq["jsonrpc"] = "2.0";
-        listReq["id"] = 2;
-        listReq["method"] = "tools/list";
-        Json listResp = app.dispatchMcpJson(listReq);
+        // 2. server/discover
+        Json discResp = app.dispatchMcpJson(make_req(2, "server/discover"));
+        CHECK(discResp["result"]["resultType"].get<std::string>() == "complete");
+        CHECK(discResp["result"]["supportedVersions"][0].get<std::string>() == "2026-07-28");
+        CHECK(discResp["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"].get<std::string>() == "obsidian-mcp");
+        CHECK(discResp["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"].get<std::string>() == "2.0.0");
+
+        // 3. tools/list
+        Json listResp = app.dispatchMcpJson(make_req(3, "tools/list"));
         auto tools = listResp["result"]["tools"].get<Json::array_t>();
         std::vector<std::string> toolNames;
         for (const auto& t : tools) toolNames.push_back(t["name"].get<std::string>());
@@ -673,27 +695,244 @@ TEST_SUITE("app / mcp") {
         CHECK(std::find(toolNames.begin(), toolNames.end(), "status") != toolNames.end());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "mcp_resource_read") != toolNames.end());
 
-        // 3. resources/read
-        Json resReq = Json::object_t{};
-        resReq["jsonrpc"] = "2.0";
-        resReq["id"] = 3;
-        resReq["method"] = "resources/read";
-        resReq["params"]["uri"] = "obsidian://conventions";
-        Json resResp = app.dispatchMcpJson(resReq);
+        // 4. resources/read
+        Json resParams = slimr::json_obj();
+        resParams["uri"] = "obsidian://conventions";
+        Json resResp = app.dispatchMcpJson(make_req(4, "resources/read", std::move(resParams)));
         auto contents = resResp["result"]["contents"].get<Json::array_t>();
         CHECK(contents.size() == 1);
         CHECK(contents[0]["text"].get<std::string>().find("# Obsidian note conventions") != std::string::npos);
 
-        // 4. tools/call status
-        Json callStatus = Json::object_t{};
-        callStatus["jsonrpc"] = "2.0";
-        callStatus["id"] = 4;
-        callStatus["method"] = "tools/call";
-        callStatus["params"]["name"] = "status";
-        callStatus["params"]["arguments"] = Json::object_t{};
-        Json statusResp = app.dispatchMcpJson(callStatus);
+        // 5. tools/call status
+        Json statusParams = slimr::json_obj();
+        statusParams["name"] = "status";
+        statusParams["arguments"] = slimr::json_obj();
+        Json statusResp = app.dispatchMcpJson(make_req(5, "tools/call", std::move(statusParams)));
         CHECK(!statusResp["result"]["isError"].get<bool>());
         auto statusContent = statusResp["result"]["content"].get<Json::array_t>();
         CHECK(statusContent[0]["text"].get<std::string>().find("\"version\":\"2.0.0\"") != std::string::npos);
+    }
+
+    TEST_CASE("http transport, cli flags, discovery, tools, and concurrency") {
+        struct TcpFd {
+            int fd{-1};
+            TcpFd() = default;
+            explicit TcpFd(int f) : fd(f) {}
+            TcpFd(const TcpFd&) = delete;
+            TcpFd& operator=(const TcpFd&) = delete;
+            ~TcpFd() {
+                if (fd >= 0) ::close(fd);
+            }
+        };
+
+        auto http_post = [](uint16_t port,
+                            std::string_view method,
+                            std::string_view mcpName,
+                            const Json& body) -> std::pair<int, std::string> {
+            int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (fd < 0) return {0, ""};
+            TcpFd sock(fd);
+            struct timeval tv{};
+            tv.tv_sec = 5;
+            ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+            ::setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+
+            struct sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port = htons(port);
+            ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+            if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0) {
+                return {0, ""};
+            }
+
+            std::string bodyStr = slimr::write_json(body);
+            std::ostringstream os;
+            os << "POST /mcp HTTP/1.1\r\n"
+               << "Host: 127.0.0.1:" << port << "\r\n"
+               << "Connection: close\r\n"
+               << "Content-Type: application/json\r\n"
+               << "Accept: application/json, text/event-stream\r\n"
+               << "MCP-Protocol-Version: " << slimr::kMcpProtocolVersion << "\r\n"
+               << "Mcp-Method: " << method << "\r\n";
+            if (!mcpName.empty()) {
+                os << "Mcp-Name: " << mcpName << "\r\n";
+            }
+            os << "Content-Length: " << bodyStr.size() << "\r\n\r\n" << bodyStr;
+            std::string rawReq = os.str();
+            size_t sent = 0;
+            while (sent < rawReq.size()) {
+                ssize_t n = ::send(fd, rawReq.data() + sent, rawReq.size() - sent, 0);
+                if (n <= 0) return {0, ""};
+                sent += static_cast<size_t>(n);
+            }
+            std::string rawResp;
+            char buf[4096];
+            for (;;) {
+                ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
+                if (n <= 0) break;
+                rawResp.append(buf, static_cast<size_t>(n));
+            }
+            auto hdrEnd = rawResp.find("\r\n\r\n");
+            if (hdrEnd == std::string::npos) return {0, ""};
+            std::string hdrs = rawResp.substr(0, hdrEnd);
+            auto sp1 = hdrs.find(' ');
+            int status = sp1 == std::string::npos ? 0 : std::atoi(hdrs.c_str() + sp1 + 1);
+            return {status, rawResp.substr(hdrEnd + 4)};
+        };
+
+        auto make_req = [](int id, std::string_view method, Json params = slimr::json_obj()) {
+            Json meta = slimr::json_obj();
+            meta["io.modelcontextprotocol/protocolVersion"] = std::string(slimr::kMcpProtocolVersion);
+            meta["io.modelcontextprotocol/clientCapabilities"] = slimr::json_obj();
+            params["_meta"] = std::move(meta);
+            Json req = slimr::json_obj();
+            req["jsonrpc"] = "2.0";
+            req["id"] = id;
+            req["method"] = std::string(method);
+            req["params"] = std::move(params);
+            return req;
+        };
+
+        TestVault vault({
+            {"People/Jane Doe.md", "---\ntags: [person]\n---\nJane note body\n"},
+            {"Places/Cafe.md", "# Cafe\nCoffee\n"},
+        });
+        TestEnv configured("OBSIDIAN_CONVENTIONS_FILE", nullptr);
+        TestEnv xdg("XDG_CONFIG_HOME", nullptr);
+        TestEnv home("HOME", vault.root.c_str());
+
+        // 1. Refuse non-loopback 0.0.0.0 and unflagged port 0
+        {
+            auto app = make_obsidian_app();
+            slimr::HttpServerOptions badHost;
+            badHost.host = "0.0.0.0";
+            badHost.port = 0;
+            badHost.allowEphemeralPort = true;
+            slimr::McpHttpServer badSrv(app, badHost);
+            std::string err;
+            CHECK(badSrv.start(&err) == false);
+            CHECK(err.find("Non-loopback") != std::string::npos);
+
+            slimr::HttpServerOptions fixedOnly;
+            fixedOnly.host = "127.0.0.1";
+            fixedOnly.port = 0;
+            slimr::McpHttpServer noEph(app, fixedOnly);
+            CHECK(noEph.start(&err) == false);
+        }
+
+        // 2. CLI enable_http refuses 0.0.0.0 and runs status
+        {
+            auto app = make_obsidian_app();
+            slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 8081});
+            char a0[] = "obsidian-mcp";
+            char a1[] = "http";
+            char a2[] = "--host";
+            char a3[] = "0.0.0.0";
+            char* badArgv[] = {a0, a1, a2, a3, nullptr};
+            CHECK(app.run(4, badArgv) == 1);
+
+            char s1[] = "status";
+            char* statusArgv[] = {a0, s1, nullptr};
+            std::stringstream ss;
+            auto* oldOut = std::cout.rdbuf(ss.rdbuf());
+            int rc = app.run(2, statusArgv);
+            std::cout.rdbuf(oldOut);
+            CHECK(rc == 0);
+            CHECK(ss.str().find("\"version\":\"2.0.0\"") != std::string::npos);
+        }
+
+        // 3. Ephemeral HTTP server
+        auto app = make_obsidian_app();
+        slimr::HttpServerOptions opts;
+        opts.host = "127.0.0.1";
+        opts.port = 0;
+        opts.allowEphemeralPort = true;
+        slimr::McpHttpServer srv(app, opts);
+        std::string err;
+        REQUIRE(srv.start(&err));
+        const uint16_t port = srv.boundPort();
+        REQUIRE(port > 0);
+
+        // server/discover
+        {
+            auto [st, body] = http_post(port, "server/discover", "", make_req(1, "server/discover"));
+            CHECK(st == 200);
+            auto parsed = slimr::parse_json<Json>(body);
+            REQUIRE(parsed.has_value());
+            CHECK((*parsed)["result"]["supportedVersions"][0].get<std::string>() == "2026-07-28");
+            CHECK((*parsed)["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"].get<std::string>() == "obsidian-mcp");
+        }
+
+        // tools/list
+        {
+            auto [st, body] = http_post(port, "tools/list", "", make_req(2, "tools/list"));
+            CHECK(st == 200);
+            auto parsed = slimr::parse_json<Json>(body);
+            REQUIRE(parsed.has_value());
+            CHECK((*parsed)["result"]["tools"].get_array().size() == 8);
+        }
+
+        // tools/call read
+        {
+            Json p = slimr::json_obj();
+            p["name"] = "read";
+            p["arguments"]["note"] = "Jane Doe";
+            auto [st, body] = http_post(port, "tools/call", "read", make_req(3, "tools/call", std::move(p)));
+            CHECK(st == 200);
+            auto parsed = slimr::parse_json<Json>(body);
+            REQUIRE(parsed.has_value());
+            CHECK((*parsed)["result"]["isError"].get<bool>() == false);
+            CHECK((*parsed)["result"]["content"][0]["text"].get<std::string>().find("Jane note body") != std::string::npos);
+        }
+
+        // resources/read
+        {
+            Json p = slimr::json_obj();
+            p["uri"] = "obsidian://conventions";
+            auto [st, body] = http_post(port, "resources/read", "obsidian://conventions", make_req(4, "resources/read", std::move(p)));
+            CHECK(st == 200);
+            auto parsed = slimr::parse_json<Json>(body);
+            REQUIRE(parsed.has_value());
+            CHECK((*parsed)["result"]["contents"][0]["text"].get<std::string>().find("# Obsidian note conventions") != std::string::npos);
+        }
+
+        // Concurrent HTTP callers (readers + writers)
+        {
+            std::vector<std::thread> threads;
+            std::atomic<int> failures{0};
+            for (int t = 0; t < 4; ++t) {
+                threads.emplace_back([&, t]() {
+                    for (int iter = 0; iter < 4; ++iter) {
+                        Json p = slimr::json_obj();
+                        p["name"] = "search";
+                        p["arguments"]["query"] = "Jane";
+                        auto [st, body] = http_post(port, "tools/call", "search", make_req(100 + t * 10 + iter, "tools/call", std::move(p)));
+                        auto parsed = slimr::parse_json<Json>(body);
+                        if (st != 200 || !parsed || (*parsed)["result"]["isError"].get<bool>()) {
+                            failures.fetch_add(1);
+                        }
+                    }
+                });
+            }
+            for (int w = 0; w < 2; ++w) {
+                threads.emplace_back([&, w]() {
+                    for (int iter = 0; iter < 3; ++iter) {
+                        Json p = slimr::json_obj();
+                        p["name"] = "write";
+                        p["arguments"]["path"] = "Concurrent/Note_" + std::to_string(w) + "_" + std::to_string(iter) + ".md";
+                        p["arguments"]["content"] = "concurrent body\n";
+                        auto [st, body] = http_post(port, "tools/call", "write", make_req(200 + w * 10 + iter, "tools/call", std::move(p)));
+                        auto parsed = slimr::parse_json<Json>(body);
+                        if (st != 200 || !parsed || (*parsed)["result"]["isError"].get<bool>()) {
+                            failures.fetch_add(1);
+                        }
+                    }
+                });
+            }
+            for (auto& th : threads) th.join();
+            CHECK(failures.load() == 0);
+        }
+
+        srv.stop();
     }
 }

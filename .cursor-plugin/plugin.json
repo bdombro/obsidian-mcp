@@ -1,0 +1,16 @@
+{
+  "name": "obsidian-mcp",
+  "displayName": "Obsidian MCP",
+  "description": "Read, search, write, append, and rename notes in an Obsidian vault over MCP",
+  "version": "2.0.0",
+  "author": {
+    "name": "Brian Dombrowski"
+  },
+  "homepage": "https://github.com/bdombro/obsidian-mcp",
+  "repository": "https://github.com/bdombro/obsidian-mcp",
+  "mcpServers": {
+    "obsidian-mcp": {
+      "url": "http://127.0.0.1:8081/mcp"
+    }
+  }
+}

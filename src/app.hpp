@@ -7,14 +7,17 @@
 #include "glaze/yaml.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <regex>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -312,16 +315,27 @@ inline std::vector<std::string> string_list(const Json& value) {
 
 // --- Vault Path & Mutation Helpers ---
 
+inline std::shared_mutex& vault_mutex() {
+    static std::shared_mutex m;
+    return m;
+}
+
 inline std::string vault_root() {
     const char* env = std::getenv("OBSIDIAN_VAULT");
+    std::string res;
     if (env && *env != '\0') {
-        return std::filesystem::path(env).lexically_normal().string();
+        res = std::filesystem::path(env).lexically_normal().string();
+    } else {
+        const char* home = std::getenv("HOME");
+        if (!home || !*home) {
+            throw std::runtime_error("HOME is required when OBSIDIAN_VAULT is not configured");
+        }
+        res = (std::filesystem::path(home) / "Documents" / "Notes").lexically_normal().string();
     }
-    const char* home = std::getenv("HOME");
-    if (!home || !*home) {
-        throw std::runtime_error("HOME is required when OBSIDIAN_VAULT is not configured");
+    while (res.size() > 1 && res.back() == '/') {
+        res.pop_back();
     }
-    return (std::filesystem::path(home) / "Documents" / "Notes").lexically_normal().string();
+    return res;
 }
 
 inline std::string load_conventions() {
@@ -467,9 +481,11 @@ inline void vault_write(std::string_view rel, std::string_view content) {
     std::filesystem::create_directories(target.parent_path());
 
     // Atomic write via temp file in same directory
+    static std::atomic<uint64_t> tmp_seq{0};
     std::filesystem::path tmp_path = target;
     tmp_path += ".tmp." + std::to_string(getpid()) + "_" +
-                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+                std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_" +
+                std::to_string(tmp_seq.fetch_add(1, std::memory_order_relaxed));
 
     {
         std::ofstream out(tmp_path, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -891,6 +907,7 @@ inline std::string aliases_add(const std::string& text, const std::vector<std::s
 // --- In-Process Public C++ Command Handlers ---
 
 inline ReadOutput read_note(const ReadInput& input) {
+    std::shared_lock<std::shared_mutex> lock(vault_mutex());
     Note note = note_load(note_resolve(input.note.get()));
     return ReadOutput{
         .content = note.content,
@@ -906,6 +923,7 @@ inline ReadOutput read_note(std::string_view note_ref) {
 }
 
 inline WriteOutput write_note(const WriteInput& input) {
+    std::unique_lock<std::shared_mutex> lock(vault_mutex());
     std::string path_str = input.path.get();
     std::string rel = rel_normalize(path_str.ends_with(".md") ? path_str : (path_str + ".md"));
 
@@ -943,6 +961,7 @@ inline WriteOutput write_note(std::string_view path, std::string_view content, b
 }
 
 inline AppendOutput append_note(const AppendInput& input) {
+    std::unique_lock<std::shared_mutex> lock(vault_mutex());
     Note note = note_load(note_resolve(input.note.get()));
     std::string added = input.text.get();
     while (!added.empty() && added.back() == '\n') added.pop_back();
@@ -1057,6 +1076,7 @@ inline AppendOutput append_note(std::string_view note, std::string_view text, st
 }
 
 inline RenameOutput rename_note(const RenameInput& input) {
+    std::unique_lock<std::shared_mutex> lock(vault_mutex());
     auto paths = note_paths();
     std::string oldPath = note_resolve(input.from.get(), paths);
     std::string oldTitle = posix_basename(oldPath, ".md");
@@ -1212,6 +1232,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
 }
 
 inline ListOutput list_notes(const ListInput& input) {
+    std::shared_lock<std::shared_mutex> lock(vault_mutex());
     std::string rel = folder_normalize(input.folder.get());
     std::string abs = vault_path(rel);
 
@@ -1255,6 +1276,7 @@ inline ListOutput list_notes(std::string_view folder = "", bool recursive = fals
 }
 
 inline SearchOutput search_notes(const SearchInput& input) {
+    std::shared_lock<std::shared_mutex> lock(vault_mutex());
     auto query_terms = [](std::string_view query) -> std::vector<std::string> {
         std::vector<std::string> terms;
         std::regex re(R"lit("([^"]+)"|(\S+))lit");
@@ -1491,7 +1513,7 @@ inline slimr::PluginApp make_obsidian_app() {
     app.tool<ReadInput>(
         "read",
         "Read one note by vault-relative path, title or alias.",
-        slimr::ToolAnnotations{.readOnlyHint = true},
+        slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
         [](const ReadInput& in) { return read_note(in); }
     );
 
@@ -1519,21 +1541,21 @@ inline slimr::PluginApp make_obsidian_app() {
     app.tool<ListInput>(
         "list",
         "List notes in a vault folder, optionally recursively.",
-        slimr::ToolAnnotations{.readOnlyHint = true},
+        slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
         [](const ListInput& in) { return list_notes(in); }
     );
 
     app.tool<SearchInput>(
         "search",
         "Search notes by keywords, folder, tag and front matter.",
-        slimr::ToolAnnotations{.readOnlyHint = true},
+        slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
         [](const SearchInput& in) { return search_notes(in); }
     );
 
     app.tool<StatusInput>(
         "status",
         "Show app version.",
-        slimr::ToolAnnotations{.readOnlyHint = true},
+        slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
         [](const StatusInput& in) { return status(in); }
     );
 

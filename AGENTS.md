@@ -2,34 +2,38 @@
 
 Written for: AI coding agents working in the `obsidian-mcp` C++26 plugin repository.
 
-`obsidian-mcp` is a native C++26 MCP plugin and CLI built on `slimr-cpp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It compiles both as a standalone binary (`build/bin/obsidian-mcp`) and in-process inside the workspace `build/bin/assistant-mcp` gateway (`notes_*` tools).
+`obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin and CLI built on `slimr-cpp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:8081/mcp`), stdio (`mcp`), and narrow JSON CLI invocation.
 
 ## Commands
 
 | Task | Command |
 | --- | --- |
-| Run unit & temp-vault tests (ASan + UBSan) | `just test` |
+| Run unit, temp-vault, HTTP & concurrency tests (ASan + UBSan) | `just test` |
 | Build and test release binary (`build/bin/obsidian-mcp`) | `just build` |
 | Analyze app and test translation units | `just lint` |
-| Verify isolated MCP initialization and tool discovery | `just test-mcp` |
+| Verify isolated MCP `2026-07-28` stdio & ephemeral HTTP discovery | `just test-mcp` |
 | Clean build artifacts | `just clean` |
 
 ## Module Boundaries
 
 | Path | Owns | Must Not |
 | --- | --- | --- |
-| `src/main.cpp` | Thin entrypoint calling `obsidian::make_obsidian_app().run(argc, argv)` | Business logic or tool handlers |
-| `src/app.hpp` | Vault path containment (`relNormalize`, `vaultPath`, `vaultPathMutable`), frontmatter/inline tag parsing, note resolution, search ranking, backlink-rewriting rename, and `make_obsidian_app()` | Assume a fixed CWD or shell access |
+| `src/main.cpp` | Thin entrypoint enabling HTTP on `127.0.0.1:8081` and calling `run(argc, argv)` | Business logic or tool handlers |
+| `src/app.hpp` | Vault path containment (`rel_normalize`, `vault_path`, `vault_path_mutable`), `vault_mutex()` concurrency guard, frontmatter/inline tag parsing, note resolution, search ranking, backlink-rewriting rename, and `make_obsidian_app()` | Assume a fixed CWD or shell access |
 | `docs/conventions.md` | Generic embedded fallback for `obsidian://conventions`; private overrides use `OBSIDIAN_CONVENTIONS_FILE` or XDG configuration | Personal conventions or tool usage docs (keep tool docs in `README.md` / tool descriptions) |
-| `tests/test_main.cpp` | Temp-vault (`TempDirGuard`) unit and MCP tests | Ever touch the live vault (`~/Documents/Notes`) |
+| `Formula/obsidian-mcp.rb` | Public Homebrew formula and `launchd` service (`127.0.0.1:8081`) | Embedded secrets or private download strategies |
+| `scripts/dev-formula.sh` | Safe local dev formula staging and backup restore | Leave release formula modified after failure |
+| `scripts/test-mcp.mjs` | Native July `2026-07-28` stdio and ephemeral HTTP `server/discover` + `tools/list` verification | Touch live vault or run mutating tool calls |
+| `.cursor-plugin/` & `.claude-plugin/` | Cursor and Claude Code HTTP plugin manifests (`http://127.0.0.1:8081/mcp`) | Stdio/Node wrappers or secrets |
+| `tests/test_main.cpp` | Temp-vault, HTTP, CLI, and concurrency tests | Ever touch the live vault (`~/Documents/Notes`) |
 
 ## Safety & App Conventions
 
-1. **Never touch the live vault in tests:** Every test must create an isolated temporary directory (`slimr::testing::TempDirGuard`) and point `OBSIDIAN_VAULT` (or the `VaultConfig` parameter) at that temp directory.
+1. **Never touch the live vault in tests:** Every test must create an isolated temporary directory and point `OBSIDIAN_VAULT` at that temp directory.
 2. **Strict path containment:**
-   - Every read path must pass through `relNormalize` / `vaultPath`: vault-relative only, rejecting `..`, absolute paths, hidden directories (`.obsidian`, `.trash`, `.git`), and symlinks resolving outside the vault.
-   - Every write/rename path must pass through `vaultPathMutable`, which additionally refuses symlinks as the target or any intermediate path component.
-3. **In-process C++ API:** `personal-log` (`src/mine.hpp`) can call `obsidian` functions in-process during mining (`Med` and `Medical Expenses` note updates). Keep functions in `namespace obsidian` cleanly callable without global mutable state.
+   - Every read path must pass through `rel_normalize` / `vault_path`: vault-relative only, rejecting `..`, absolute paths, hidden directories (`.obsidian`, `.trash`, `.git`), and symlinks resolving outside the vault.
+   - Every write/rename path must pass through `vault_path_mutable`, which additionally refuses symlinks as the target or any intermediate path component.
+3. **Thread safety under HTTP:** Read-only tools (`read`, `list`, `search`, `status`) opt into `threadSafe = true` and acquire `std::shared_lock` on `vault_mutex()`. Mutating operations (`write_note`, `append_note`, `rename_note`) acquire `std::unique_lock` on `vault_mutex()` and use atomic temp-file writes (`vault_write`).
 4. **Remote-ready:** Tools take and return note content and vault-relative paths, never host absolute paths.
 
 ## C++ Memory Safety
