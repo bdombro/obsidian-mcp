@@ -13,7 +13,17 @@ Search, read, and safely edit notes in your Obsidian vault through MCP (`2026-07
 
 Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:8081/mcp`), **stdio** (`mcp`), or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
 
-> **Breaking change (`2026-07-28`):** `obsidian-mcp` implements the MCP `2026-07-28` contract directly (`server/discover`, per-request `_meta`, `resultType`, and HTTP header reflection). Legacy `initialize`, `ping`, HTTP session IDs, GET SSE streams, and unified gateway prefixes (`notes_*`) are removed.
+> **Client compatibility:** MCP **2026-07-28 only**; legacy clients cannot connect.
+> The workspace has been exercised with OpenCode v2.2.6 using explicit July
+> configuration. Cursor's July support is deferred; Claude Code July runtime
+> acceptance is not yet verified. Shipping a plugin manifest is not proof of
+> client compatibility.
+
+## Try It
+
+After setup, ask your agent:
+
+> Find notes about the boiler service, then show me the maintenance checklist.
 
 ## Features
 
@@ -23,120 +33,76 @@ Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown file
 - Concurrent HTTP reads (`read`, `list`, `search`, `status`) synchronized with exclusive vault writes via `std::shared_mutex`.
 - Small footprint: on-demand local search with no resident indexer or Node/V8 runtime.
 
-## Client Configuration
+## Installation
 
-### Streamable HTTP (Recommended — `http://127.0.0.1:8081/mcp`)
+- **Prebuilt release:** the checked-in [Homebrew formula](Formula/obsidian-mcp.rb)
+  currently has a placeholder checksum. It is not a ready-to-install release.
+  Check [releases](https://github.com/bdombro/obsidian-mcp/releases) for published
+  binaries and a finalized formula before using a release installation command.
+- **Build from source:** the current path is [Development](#development).
+  Local slimr overlays are for development, not a runtime requirement.
+- **Already installed:** follow the setup and service steps below. Installing a
+  Cursor/Claude manifest only configures an endpoint; it does not install or
+  start the native service.
 
-Start the background service (`just install-local && just start` or `brew services start bdombro/obsidian-mcp/obsidian-mcp`), or run `./build/bin/obsidian-mcp http`.
 
-**Claude Code (`.mcp.json` / plugin config):**
+## Configure Your Vault
 
-```json
-{
-  "mcpServers": {
-    "obsidian-mcp": {
-      "type": "http",
-      "url": "http://127.0.0.1:8081/mcp"
-    }
-  }
-}
+The default vault is `$HOME/Documents/Notes`; Obsidian does not need to be
+running. For another vault, set `OBSIDIAN_VAULT` in the server's environment.
+For example, with an installed binary:
+
+```bash
+OBSIDIAN_VAULT="/absolute/path/to/vault" obsidian-mcp http
 ```
 
-**Cursor (`.cursor/mcp.json` / plugin config):**
+For a Homebrew service, configure its environment separately from your shell.
+Private convention overrides are optional; the embedded public guide works
+without them. Never put door/alarm codes or other secrets in public docs.
 
-```json
-{
-  "mcpServers": {
-    "obsidian-mcp": {
-      "url": "http://127.0.0.1:8081/mcp"
-    }
-  }
-}
+
+## Start and Manage the Service
+
+For an already-installed Homebrew formula:
+
+```bash
+brew services start bdombro/obsidian-mcp/obsidian-mcp
+brew services info obsidian-mcp
+brew services restart bdombro/obsidian-mcp/obsidian-mcp
+brew services stop bdombro/obsidian-mcp/obsidian-mcp
 ```
 
-Plugin marketplace manifests are included in `.cursor-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`.
+The endpoint is `http://127.0.0.1:8081/mcp`; logs are under
+`/opt/homebrew/var/log/`. To run in the foreground instead, use
+`obsidian-mcp http` (or `./build/bin/obsidian-mcp http` from a source checkout).
+Do not run the foreground server and service on the same port.
+Keep the default loopback bind; this is not a shared remote-host deployment.
 
-### Stdio Transport (`.mcp.json`)
+
+## Connect Your Agent
+
+After starting the service, add this server to OpenCode v2.2.6's
+`opencode.jsonc` (merge it with any existing servers):
 
 ```json
 {
-  "mcpServers": {
-    "obsidian-mcp": {
-      "command": "/absolute/path/to/obsidian-mcp/build/bin/obsidian-mcp",
-      "args": ["mcp"],
-      "env": {
-        "OBSIDIAN_VAULT": "/absolute/path/to/vault"
+  "mcp": {
+    "servers": {
+      "obsidian-mcp": {
+        "type": "remote",
+        "url": "http://127.0.0.1:8081/mcp",
+        "protocol": "2026-07-28"
       }
     }
   }
 }
 ```
 
-## Homebrew Formula & Service Lifecycle
+Use either an explicit server entry or a plugin manifest, not both.
+Alternative client schemas and stdio configuration are in the
+[developer reference](docs/development.md). The compatibility notice above
+applies to every transport.
 
-`Formula/obsidian-mcp.rb` installs `obsidian-mcp` and configures a `launchd` service running:
-
-```text
-obsidian-mcp http --host 127.0.0.1 --port 8081
-```
-
-Logs are written to `$(brew --prefix)/var/log/obsidian-mcp.log`. No secrets are embedded in the formula. Under `launchd`, `HOME` is provided by the user agent environment (`$HOME/Documents/Notes` default vault); configure `OBSIDIAN_VAULT` or `OBSIDIAN_CONVENTIONS_FILE` in the user environment or XDG config (`~/.config/obsidian/conventions.md`) when overriding defaults.
-
-```bash
-just install-local    # Build Release binary, stage local dev formula safely, brew install/reinstall
-just reinstall-local  # Fast rebuild + binary swap into existing Cellar keg
-just start            # brew services start bdombro/obsidian-mcp/obsidian-mcp
-just stop             # brew services stop bdombro/obsidian-mcp/obsidian-mcp
-just restart          # brew services restart bdombro/obsidian-mcp/obsidian-mcp
-just status           # Check brew service state and probe http://127.0.0.1:8081/mcp
-just uninstall        # Stop service, uninstall formula, untap
-```
-
-## App Architecture
-
-The standalone Streamable HTTP server, stdio MCP server, and JSON CLI are implemented in C++26 on `slimr-cpp`.
-
-```text
-plugins/obsidian-mcp/
-├── vcpkg.json                # Independently resolved dependencies (`slimr-mcp[http]`, `slimr-test`)
-├── CMakeLists.txt            # App/test targets linking `slimr::mcp_http`
-├── justfile                  # Thin CMake/Ninja, lint, test, and Homebrew lifecycle recipes
-├── Formula/
-│   └── obsidian-mcp.rb       # Homebrew formula + launchd service on 127.0.0.1:8081
-├── .cursor-plugin/
-│   └── plugin.json           # Cursor plugin manifest -> http://127.0.0.1:8081/mcp
-├── .claude-plugin/
-│   ├── plugin.json           # Claude Code plugin manifest -> http://127.0.0.1:8081/mcp
-│   └── marketplace.json      # Claude Code marketplace catalog
-├── docs/
-│   └── conventions.md        # Note conventions served as `obsidian://conventions`
-├── scripts/
-│   ├── dev-formula.sh        # Safe local formula staging + automatic backup restore
-│   └── test-mcp.mjs          # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
-├── src/
-│   ├── app.hpp               # Vault path isolation, frontmatter/tag parser, search/rename engine, and `make_obsidian_app()`
-│   └── main.cpp              # Standalone CLI, stdio (`mcp`), and Streamable HTTP (`http`) entrypoint
-├── tests/
-│   └── test_main.cpp         # Unit, temp-vault, HTTP, CLI, and concurrency tests
-└── build/bin/
-    └── obsidian-mcp          # Standalone release binary
-```
-
-### Libraries Used
-
-- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, stdio NDJSON MCP `2026-07-28` server, Streamable HTTP (`libhv`), and `obsidian://conventions` resource registration.
-- **`<glaze/yaml.hpp>`:** YAML frontmatter parsing (`aliases`, `tags`, key-value filters).
-- **`<json.hpp>` (`glaze`):** RFC-8259 JSON serialization.
-- **`<bugsink.hpp>` (`-lcurl`):** Optional exception reporting configured with `BUGSINK_DSN`.
-- **`<test.hpp>` (`doctest`):** Temp-vault fixture testing with `-fsanitize=address,undefined`.
-- **C++26 Standard Library:** `<filesystem>`, `<shared_mutex>`, `<regex>` (wikilink/embed/markdown link rewriting).
-
-## Architecture & Vault Isolation
-
-- **Default vault path:** `$HOME/Documents/Notes` (override with `OBSIDIAN_VAULT`). Missing `HOME` is an error only when a vault operation needs the default.
-- **Path containment:** Every note path is canonicalized relative to the vault root (`std::filesystem::canonical`). Any path resolving outside the vault (`..`, absolute paths, symlinks pointing outside the vault) or into hidden directories (`.obsidian`, `.trash`, `.git`) is strictly refused.
-- **No background index:** Searches scan the vault at query time, parsing YAML frontmatter (`aliases`, `tags`, arbitrary `key: value` metadata) and inline `#tags` (including nested `#parent/child` tags) on the fly.
-- **Conventions resource:** Serves `obsidian://conventions`, also readable through `mcp_resource_read`. On resource reads only, it loads `OBSIDIAN_CONVENTIONS_FILE`, otherwise `$XDG_CONFIG_HOME/obsidian/conventions.md` or `$HOME/.config/obsidian/conventions.md`. A missing default private file uses the embedded public guide (`docs/conventions.md`); a configured missing or unreadable file fails visibly. Discovery never reads the vault or creates configuration files. Keep private conventions outside the repository with owner-only permissions.
 
 ## Tools & CLI Commands
 
@@ -178,6 +144,13 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 ./build/bin/obsidian-mcp http --host 127.0.0.1 --port 0 --allow-ephemeral-port
 ```
 
+## Architecture & Vault Isolation
+
+- **Default vault path:** `$HOME/Documents/Notes` (override with `OBSIDIAN_VAULT`). Missing `HOME` is an error only when a vault operation needs the default.
+- **Path containment:** Every note path is canonicalized relative to the vault root (`std::filesystem::canonical`). Any path resolving outside the vault (`..`, absolute paths, symlinks pointing outside the vault) or into hidden directories (`.obsidian`, `.trash`, `.git`) is strictly refused.
+- **No background index:** Searches scan the vault at query time, parsing YAML frontmatter (`aliases`, `tags`, arbitrary `key: value` metadata) and inline `#tags` (including nested `#parent/child` tags) on the fly.
+- **Conventions resource:** Serves `obsidian://conventions`, also readable through `mcp_resource_read`. On resource reads only, it loads `OBSIDIAN_CONVENTIONS_FILE`, otherwise `$XDG_CONFIG_HOME/obsidian/conventions.md` or `$HOME/.config/obsidian/conventions.md`. A missing default private file uses the embedded public guide (`docs/conventions.md`); a configured missing or unreadable file fails visibly. Discovery never reads the vault or creates configuration files. Keep private conventions outside the repository with owner-only permissions.
+
 ## Environment Variables
 
 | Variable | Default | Purpose |
@@ -185,6 +158,35 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 | `OBSIDIAN_VAULT` | `$HOME/Documents/Notes` | Root directory of the Obsidian Markdown vault |
 | `OBSIDIAN_CONVENTIONS_FILE` | XDG/private file, then embedded guide | Optional private conventions override, loaded only on resource reads |
 | `BUGSINK_DSN` | Unset (disabled) | Sentry-compatible error reporting DSN (`""` disables reporting) |
+
+## Troubleshooting
+
+- **Client cannot connect:** confirm it supports July MCP, the service is
+  running, and the client URL matches the configured port. OpenCode needs
+  `"protocol": "2026-07-28"`; old `initialize` clients will fail.
+- **Port occupied:** inspect the listener and stop only the service/process
+  you own, or deliberately choose another port and update the client URL.
+- **Works in a terminal, not as a service:** launchd does not inherit
+  `~/.zshrc`. Configure the service environment separately or use the
+  plugin's supported private configuration file; inspect
+  `/opt/homebrew/var/log/` for errors.
+- **Vault unavailable:** verify the configured vault path, ownership and service permissions. Tests never use the live vault.
+- **Source build cannot find vcpkg or slimr ports:** load the development
+  environment, bootstrap vcpkg, and register both slimr links and the pinned
+  libhv overlay. Never repair this by editing installed headers.
+- **Compiler/hardening check fails:** upgrade the Xcode toolchain; set
+  `CXX` before first configure. CMake caches the compiler, so an intentional
+  compiler change needs a fresh configuration tree.
+
+
+## Development
+
+This section is for building or changing the server, not configuring an
+installed binary. [Architecture, transport reference and test details](docs/development.md)
+are separate from the user setup flow.
+
+<details>
+<summary>macOS source-build setup (vcpkg and local slimr overlays)</summary>
 
 ## macOS Build Prerequisites (vcpkg setup)
 
@@ -251,21 +253,14 @@ before bootstrapping; package registry baselines pin resolution separately.
 Obsidian itself is optional: the server reads Markdown directly. Build/test
 commands do not start services or touch your live vault.
 
-## Building & Testing
+</details>
 
-Use Clang with C++26 and libc++ FAST hardening, CMake 3.31+, Ninja, [just](https://just.systems), a bootstrapped [vcpkg](https://vcpkg.io), Node.js (for `scripts/test-mcp.mjs`), and a compatible clang-tidy (override with `CLANG_TIDY`). Set `VCPKG_ROOT` and put vcpkg and the tools on `PATH`. Linux additionally needs libc++ and libc++abi; select libc++ with `CXXFLAGS=-stdlib=libc++`.
-
-Dependencies are declared in `vcpkg.json`. During local development, `(cd /absolute/path/to/slimr-cpp && just publish --local --all)` publishes ports into vcpkg's local overlay; export `VCPKG_OVERLAY_PORTS="$VCPKG_ROOT/local-ports"` in your shell. `just deps` installs into `build/deps/` for the detected native triplet. `configure` always runs it, with CMake manifest installation disabled. CMake links installed `slimr::mcp_http` and `slimr::test` targets, never source-header overrides.
+After the source build succeeds, stage and install the local Homebrew formula:
 
 ```bash
-just test      # Debug ASan/UBSan tests against isolated vault fixtures + HTTP/concurrency tests
-just build     # Optimized IPO Release app and tests; build/bin/obsidian-mcp
-just lint      # App and test translation units using the Debug compilation database (${CLANG_TIDY:-clang-tidy})
-just test-mcp  # Native MCP 2026-07-28 stdio + ephemeral HTTP server/discover & tools/list check
-just run status
-just clean     # Remove build/ only; leaves legacy dist/ and user data untouched
+just install-local
 ```
 
-Debug and Release graphs live in `build/cmake/Debug/` and `build/cmake/Release/`; only Release apps are emitted to `build/bin/`. Set `CXX` before the first configure to choose a compiler; CMake retains its absolute path even when lint uses a different `PATH`. Both configurations enable libc++ hardening and zero automatic-variable initialization; Debug uses fatal UBSan reports. `test-mcp` isolates HOME/XDG directories in a temp directory, clears credentials, disables error reporting, and cleans up afterward; it never invokes mutating tools or opens the live vault.
-
-CI runs the same commands on native Linux/macOS. Configure `VCPKG_REF` to the tested full vcpkg commit SHA; slimr packages resolve from the public registry pinned in `vcpkg-configuration.json`, without a dependency token. Local macOS validation is not Linux execution evidence.
+Installing a formula and starting its service are separate actions.
+For a source-only foreground run, use
+`./build/bin/obsidian-mcp http`.

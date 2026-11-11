@@ -4,6 +4,14 @@ Written for: AI coding agents working in the `obsidian-mcp` C++26 plugin reposit
 
 `obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin and CLI built on `slimr-cpp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:8081/mcp`), stdio (`mcp`), and narrow JSON CLI invocation.
 
+
+## Documentation Upkeep
+
+When a change conflicts with `README.md`, update the affected README and its
+linked user/developer documentation in the same change. Keep examples,
+configuration, install/build commands and compatibility claims consistent
+with implemented behavior; do not claim unverified release or client support.
+
 ## Commands
 
 | Task | Command |
