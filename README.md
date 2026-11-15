@@ -11,7 +11,7 @@
 
 Search, read, and safely edit notes in your Obsidian vault through MCP (`2026-07-28`). Find notes by title, alias, tag, or content; rename a note and update its backlinks across the vault.
 
-Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:8081/mcp`), **stdio** (`mcp`), or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
+Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:10001/mcp`), **stdio** (`mcp`), or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
 
 > **Client compatibility:** MCP **2026-07-28 only**; legacy clients cannot connect.
 > The workspace has been exercised with OpenCode v2.2.6 using explicit July
@@ -72,7 +72,7 @@ brew services restart bdombro/obsidian-mcp/obsidian-mcp
 brew services stop bdombro/obsidian-mcp/obsidian-mcp
 ```
 
-The endpoint is `http://127.0.0.1:8081/mcp`; logs are under
+The endpoint is `http://127.0.0.1:10001/mcp`; logs are under
 `/opt/homebrew/var/log/`. To run in the foreground instead, use
 `obsidian-mcp http` (or `./build/bin/obsidian-mcp http` from a source checkout).
 Do not run the foreground server and service on the same port.
@@ -90,7 +90,7 @@ After starting the service, add this server to OpenCode v2.2.6's
     "servers": {
       "obsidian-mcp": {
         "type": "remote",
-        "url": "http://127.0.0.1:8081/mcp",
+        "url": "http://127.0.0.1:10001/mcp",
         "protocol": "2026-07-28"
       }
     }
@@ -139,7 +139,7 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 # Start stdio MCP server
 ./build/bin/obsidian-mcp mcp
 
-# Start Streamable HTTP server (defaults to 127.0.0.1:8081)
+# Start Streamable HTTP server (defaults to 127.0.0.1:10001)
 ./build/bin/obsidian-mcp http
 ./build/bin/obsidian-mcp http --host 127.0.0.1 --port 0 --allow-ephemeral-port
 ```

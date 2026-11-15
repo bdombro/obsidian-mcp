@@ -823,7 +823,7 @@ TEST_SUITE("app / mcp") {
         // 2. CLI enable_http refuses 0.0.0.0 and runs status
         {
             auto app = make_obsidian_app();
-            slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 8081});
+            slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 10001});
             char a0[] = "obsidian-mcp";
             char a1[] = "http";
             char a2[] = "--host";

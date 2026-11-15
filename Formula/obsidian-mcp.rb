@@ -12,7 +12,7 @@ class ObsidianMcp < Formula
   end
 
   service do
-    run [opt_bin/"obsidian-mcp", "http", "--host", "127.0.0.1", "--port", "8081"]
+    run [opt_bin/"obsidian-mcp", "http", "--host", "127.0.0.1", "--port", "10001"]
     keep_alive true
     log_path var/"log/obsidian-mcp.log"
     error_log_path var/"log/obsidian-mcp.log"

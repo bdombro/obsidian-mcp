@@ -20,11 +20,11 @@ plugins/obsidian-mcp/
 ├── CMakeLists.txt            # App/test targets linking `slimr::mcp_http`
 ├── justfile                  # Thin CMake/Ninja, lint, test, and Homebrew lifecycle recipes
 ├── Formula/
-│   └── obsidian-mcp.rb       # Homebrew formula + launchd service on 127.0.0.1:8081
+│   └── obsidian-mcp.rb       # Homebrew formula + launchd service on 127.0.0.1:10001
 ├── .cursor-plugin/
-│   └── plugin.json           # Cursor plugin manifest -> http://127.0.0.1:8081/mcp
+│   └── plugin.json           # Cursor plugin manifest -> http://127.0.0.1:10001/mcp
 ├── .claude-plugin/
-│   ├── plugin.json           # Claude Code plugin manifest -> http://127.0.0.1:8081/mcp
+│   ├── plugin.json           # Claude Code plugin manifest -> http://127.0.0.1:10001/mcp
 │   └── marketplace.json      # Claude Code marketplace catalog
 ├── docs/
 │   └── conventions.md        # Note conventions served as `obsidian://conventions`
@@ -51,7 +51,7 @@ plugins/obsidian-mcp/
 
 ## Client Configuration
 
-### Streamable HTTP (Recommended — `http://127.0.0.1:8081/mcp`)
+### Streamable HTTP (Recommended — `http://127.0.0.1:10001/mcp`)
 
 Start the background service (`just install-local && just start` or `brew services start bdombro/obsidian-mcp/obsidian-mcp`), or run `./build/bin/obsidian-mcp http`.
 
@@ -62,7 +62,7 @@ Start the background service (`just install-local && just start` or `brew servic
   "mcpServers": {
     "obsidian-mcp": {
       "type": "http",
-      "url": "http://127.0.0.1:8081/mcp"
+      "url": "http://127.0.0.1:10001/mcp"
     }
   }
 }
@@ -74,7 +74,7 @@ Start the background service (`just install-local && just start` or `brew servic
 {
   "mcpServers": {
     "obsidian-mcp": {
-      "url": "http://127.0.0.1:8081/mcp"
+      "url": "http://127.0.0.1:10001/mcp"
     }
   }
 }

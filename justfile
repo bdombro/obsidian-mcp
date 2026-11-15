@@ -76,31 +76,31 @@ restart:
 
 wait-ready:
     @for i in $(seq 1 30); do \
-        if curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8081/mcp \
+        if curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:10001/mcp \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json, text/event-stream' \
             -H 'MCP-Protocol-Version: 2026-07-28' \
             -H 'Mcp-Method: server/discover' \
             -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}' | grep -x '200' >/dev/null; then \
-            echo "endpoint http://127.0.0.1:8081/mcp: ready"; \
+            echo "endpoint http://127.0.0.1:10001/mcp: ready"; \
             exit 0; \
         fi; \
         sleep 0.5; \
     done; \
-    echo "endpoint http://127.0.0.1:8081/mcp: did not become ready" >&2; \
+    echo "endpoint http://127.0.0.1:10001/mcp: did not become ready" >&2; \
     exit 1
 
 status:
     brew services info bdombro/obsidian-mcp/obsidian-mcp
-    @if curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8081/mcp \
+    @if curl -sS -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:10001/mcp \
         -H 'Content-Type: application/json' \
         -H 'Accept: application/json, text/event-stream' \
         -H 'MCP-Protocol-Version: 2026-07-28' \
         -H 'Mcp-Method: server/discover' \
         -d '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}' | grep -x '200' >/dev/null; then \
-        echo "endpoint http://127.0.0.1:8081/mcp: ready"; \
+        echo "endpoint http://127.0.0.1:10001/mcp: ready"; \
     else \
-        echo "endpoint http://127.0.0.1:8081/mcp: not reachable"; \
+        echo "endpoint http://127.0.0.1:10001/mcp: not reachable"; \
     fi
 
 uninstall:
