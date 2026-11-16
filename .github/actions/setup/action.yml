@@ -27,15 +27,36 @@ runs:
       id: vcpkg-ref
       shell: bash
       run: |
-        baseline=""
+        config_file=""
         if [ -f vcpkg-configuration.json ]; then
-          baseline="$(jq -r '.["default-registry"].baseline // empty' vcpkg-configuration.json)"
-          if [ -n "$baseline" ] && ! [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::default-registry.baseline in vcpkg-configuration.json must be a 40-char commit SHA"
+          config_file="vcpkg-configuration.json"
+        else
+          shopt -s nullglob
+          candidates=(*/vcpkg-configuration.json */*/vcpkg-configuration.json)
+          if [ "${#candidates[@]}" -eq 1 ]; then
+            config_file="${candidates[0]}"
+          elif [ "${#candidates[@]}" -gt 1 ]; then
+            echo "::error::Multiple vcpkg-configuration.json files found: ${candidates[*]}"
             exit 1
           fi
         fi
-        echo "baseline=$baseline" >> "$GITHUB_OUTPUT"
+        baseline=""
+        vcpkg_glob="vcpkg*.json"
+        if [ -n "$config_file" ]; then
+          baseline="$(jq -r '.["default-registry"].baseline // empty' "$config_file")"
+          if [ -n "$baseline" ] && ! [[ "$baseline" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::default-registry.baseline in $config_file must be a 40-char commit SHA"
+            exit 1
+          fi
+          config_dir="$(dirname "$config_file")"
+          if [ "$config_dir" != "." ]; then
+            vcpkg_glob="$config_dir/vcpkg*.json"
+          fi
+        fi
+        {
+          echo "baseline=$baseline"
+          echo "vcpkg_glob=$vcpkg_glob"
+        } >> "$GITHUB_OUTPUT"
 
     - name: Checkout vcpkg
       if: steps.vcpkg-ref.outputs.baseline != ''
@@ -64,5 +85,5 @@ runs:
       uses: actions/cache@v4
       with:
         path: ${{ runner.temp }}/vcpkg-cache
-        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ steps.vcpkg-ref.outputs.baseline }}-${{ hashFiles('vcpkg*.json', 'ports/*/vcpkg.json') }}
+        key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ steps.vcpkg-ref.outputs.baseline }}-${{ hashFiles(steps.vcpkg-ref.outputs.vcpkg_glob, 'ports/*/vcpkg.json') }}
         restore-keys: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ steps.vcpkg-ref.outputs.baseline }}-
