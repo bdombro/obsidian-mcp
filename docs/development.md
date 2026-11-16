@@ -1,40 +1,48 @@
 # obsidian-mcp: Developer Reference
 
 User installation, configuration and compatibility status are in the
-[README](../README.md). This reference preserves implementation details,
-alternative transport schemas and validation commands. A client configuration
-example is not a claim of verified July/OAuth interoperability.
+[README](../README.md). This reference covers implementation details,
+alternative transport schemas, and build/test/release workflows. A client
+configuration example is not a claim of verified July/OAuth interoperability.
 
-Current HTTP source builds use local slimr and libhv overlays. The pinned
-published registry baseline predates these HTTP changes; do not claim that
-baseline builds the current HTTP app without overrides. CI configuration is
-not evidence that a runner/platform/client has passed.
+CI configuration is not evidence that a runner/platform/client has passed.
 
 ## App Architecture
 
-The standalone Streamable HTTP server, stdio MCP server, and JSON CLI are implemented in C++26 on `slimr-cpp`.
+The standalone Streamable HTTP server, stdio MCP server, and JSON CLI are implemented in C++26 on `slimr-mcp`.
 
 ```text
 plugins/obsidian-mcp/
-├── vcpkg.json                # Independently resolved dependencies (`slimr-mcp[http]`, `slimr-test`)
+├── vcpkg.json                # Dependencies (`slimr-mcp[http]`, `slimr-test`)
+├── vcpkg-configuration.json  # Pinned vcpkg builtin and `slimr-*` registries
 ├── CMakeLists.txt            # App/test targets linking `slimr::mcp_http`
 ├── justfile                  # Thin CMake/Ninja, lint, test, and Homebrew lifecycle recipes
+├── VERSION                   # Single source of truth for `--version` and Bugsink `release`
+├── CHANGELOG.md              # Release notes under `## Unreleased`
 ├── Formula/
-│   └── obsidian-mcp.rb       # Homebrew formula + launchd service on 127.0.0.1:10001
+│   └── obsidian-mcp.rb       # Homebrew formula + service (`--log-file`, `etc/obsidian-mcp/env`)
 ├── .cursor-plugin/
 │   └── plugin.json           # Cursor plugin manifest -> http://127.0.0.1:10001/mcp
 ├── .claude-plugin/
 │   ├── plugin.json           # Claude Code plugin manifest -> http://127.0.0.1:10001/mcp
 │   └── marketplace.json      # Claude Code marketplace catalog
 ├── docs/
-│   └── conventions.md        # Note conventions served as `obsidian://conventions`
+│   ├── conventions.md        # Note conventions served as `obsidian://conventions`
+│   └── development.md        # Developer reference
 ├── scripts/
-│   ├── dev-formula.sh        # Safe local formula staging + automatic backup restore
-│   └── test-mcp.mjs          # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
+│   ├── doctor.sh             # Toolchain & environment check
+│   ├── formula-shared.ts     # Shared release/formula helpers
+│   ├── release.ts            # Version bump, changelog, formula & release helper
+│   └── test-mcp.ts           # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
+├── triplets/
+│   ├── arm64-osx.cmake       # macOS 15.0 deployment target overlay triplet
+│   └── x64-linux.cmake       # Linux Homebrew llvm@23 libc++ overlay triplet
 ├── src/
 │   ├── app.hpp               # Vault path isolation, frontmatter/tag parser, search/rename engine, and `make_obsidian_app()`
+│   ├── log_file.hpp          # `--log-file` redirection and 10 MiB log rotation
 │   └── main.cpp              # Standalone CLI, stdio (`mcp`), and Streamable HTTP (`http`) entrypoint
 ├── tests/
+│   ├── test_log_file.hpp     # Log rotation unit tests
 │   └── test_main.cpp         # Unit, temp-vault, HTTP, CLI, and concurrency tests
 └── build/bin/
     └── obsidian-mcp          # Standalone release binary
@@ -51,9 +59,9 @@ plugins/obsidian-mcp/
 
 ## Client Configuration
 
-### Streamable HTTP (Recommended — `http://127.0.0.1:10001/mcp`)
+### Streamable HTTP (`http://127.0.0.1:10001/mcp`)
 
-Start the background service (`just install-local && just start` or `brew services start bdombro/obsidian-mcp/obsidian-mcp`), or run `./build/bin/obsidian-mcp http`.
+Start the background service (`just install` or `brew services start bdombro/obsidian-mcp/obsidian-mcp`), or run `./build/bin/obsidian-mcp http --port 20001` for local development.
 
 **Claude Code (`.mcp.json` / plugin config):**
 
@@ -100,19 +108,34 @@ Plugin marketplace manifests are included in `.cursor-plugin/plugin.json`, `.cla
 
 ## Building & Testing
 
-Use Clang with C++26 and libc++ FAST hardening, CMake 3.31+, Ninja, [just](https://just.systems), a bootstrapped [vcpkg](https://vcpkg.io), Node.js (for `scripts/test-mcp.mjs`), and a compatible clang-tidy (override with `CLANG_TIDY`). Set `VCPKG_ROOT` and put vcpkg and the tools on `PATH`. Linux additionally needs libc++ and libc++abi; select libc++ with `CXXFLAGS=-stdlib=libc++`.
+Run `just doctor` to verify required tools (`brew`, `bun`, `cmake`, `gh`, `git`, `jq`, `just`, `ninja`, `vcpkg`, `LLVM_BIN` from `llvm@23`, and a C++26 compiler).
 
-Dependencies are declared in `vcpkg.json`. During local development, `(cd /absolute/path/to/slimr-cpp && just publish --local --all)` publishes ports into vcpkg's local overlay; export `VCPKG_OVERLAY_PORTS="$VCPKG_ROOT/local-ports"` in your shell. `just deps` installs into `build/deps/` for the detected native triplet. `configure` always runs it, with CMake manifest installation disabled. CMake links installed `slimr::mcp_http` and `slimr::test` targets, never source-header overrides.
+- **macOS:** uses Apple Clang (`/usr/bin/clang++`) with `CMAKE_OSX_DEPLOYMENT_TARGET=15.0`. `llvm@23` provides `clang-format` and `clang-tidy` only (`LLVM_BIN` defaults to `$(brew --prefix llvm@23)/bin`).
+- **Linux (`ubuntu-24.04`):** uses Homebrew `llvm@23` (`clang++` with `-stdlib=libc++`, static libc++ in Release builds) and Homebrew `brew services` via `systemd --user` (`loginctl enable-linger "$USER"`).
+
+Dependencies are declared in `vcpkg.json` and resolved from the `slimr-*` registries pinned in `vcpkg-configuration.json`. `just deps` installs into `build/deps/` for the detected native triplet (`triplets/arm64-osx.cmake` or `triplets/x64-linux.cmake`). `just upgrade-deps` pulls `$VCPKG_ROOT`, updates baselines, and runs `just test`.
 
 ```bash
-just test      # Debug ASan/UBSan tests against isolated vault fixtures + HTTP/concurrency tests
-just build     # Optimized IPO Release app and tests; build/bin/obsidian-mcp
-just lint      # App and test translation units using the Debug compilation database (${CLANG_TIDY:-clang-tidy})
-just test-mcp  # Native MCP 2026-07-28 stdio + ephemeral HTTP server/discover & tools/list check
-just run status
-just clean     # Remove build/ only; leaves legacy dist/ and user data untouched
+just doctor    # Check toolchain, C++26 support, and environment
+just test      # Debug ASan/UBSan tests (optional doctest filter: just test "case")
+just build     # Optimized IPO Release binary at build/bin/obsidian-mcp (no tests)
+just fmt       # Format C++ sources and justfile
+just lint      # Format check + clang-tidy bug-finding checks
+just test-mcp  # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
+just clean     # Remove build/
 ```
 
-Debug and Release graphs live in `build/cmake/Debug/` and `build/cmake/Release/`; only Release apps are emitted to `build/bin/`. Set `CXX` before the first configure to choose a compiler; CMake retains its absolute path even when lint uses a different `PATH`. Both configurations enable libc++ hardening and zero automatic-variable initialization; Debug uses fatal UBSan reports. `test-mcp` isolates HOME/XDG directories in a temp directory, clears credentials, disables error reporting, and cleans up afterward; it never invokes mutating tools or opens the live vault.
+For a local foreground dev loop without touching the installed service on port `10001`:
 
-CI runs the same commands on native Linux/macOS. Configure `VCPKG_REF` to the tested full vcpkg commit SHA; slimr packages resolve from the public registry pinned in `vcpkg-configuration.json`, without a dependency token. Local macOS validation is not Linux execution evidence.
+```bash
+./build/bin/obsidian-mcp http --port 20001
+```
+
+## Releasing & Installing
+
+Trigger the GitHub release workflow (`test.yml` on macOS + Linux, version bump, `CHANGELOG.md` update, formula SHA updates, tag, and asset upload), then pull the release commit:
+
+```bash
+just release patch   # or minor / major
+just install         # Tap, install, brew test, and start service
+```

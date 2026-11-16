@@ -35,35 +35,33 @@ After setup, ask your agent:
 
 ## Installation
 
-- **Prebuilt release:** the checked-in [Homebrew formula](Formula/obsidian-mcp.rb)
-  currently has a placeholder checksum. It is not a ready-to-install release.
-  Check [releases](https://github.com/bdombro/obsidian-mcp/releases) for published
-  binaries and a finalized formula before using a release installation command.
-- **Build from source:** the current path is [Development](#development).
-  Local slimr overlays are for development, not a runtime requirement.
-- **Already installed:** follow the setup and service steps below. Installing a
-  Cursor/Claude manifest only configures an endpoint; it does not install or
-  start the native service.
+Install the released binary via Homebrew (macOS arm64 and Linux x64):
 
+```bash
+brew tap bdombro/obsidian-mcp https://github.com/bdombro/obsidian-mcp
+brew install bdombro/obsidian-mcp/obsidian-mcp
+```
+
+Installing a Cursor/Claude manifest only configures an endpoint; it does not install or start the native service.
 
 ## Configure Your Vault
 
-The default vault is `$HOME/Documents/Notes`; Obsidian does not need to be
-running. For another vault, set `OBSIDIAN_VAULT` in the server's environment.
+The default vault is `$HOME/Documents/Notes`; Obsidian does not need to be running. For another vault, set `OBSIDIAN_VAULT` in the server's environment.
 For example, with an installed binary:
 
 ```bash
 OBSIDIAN_VAULT="/absolute/path/to/vault" obsidian-mcp http
 ```
 
-For a Homebrew service, configure its environment separately from your shell.
-Private convention overrides are optional; the embedded public guide works
-without them. Never put door/alarm codes or other secrets in public docs.
+For the Homebrew service, put environment variables in `$(brew --prefix)/etc/obsidian-mcp/env` (`chmod 600`), for example:
 
+```bash
+OBSIDIAN_VAULT=/absolute/path/to/vault
+```
+
+Private convention overrides are optional; the embedded public guide works without them. Never put door/alarm codes or other secrets in public docs.
 
 ## Start and Manage the Service
-
-For an already-installed Homebrew formula:
 
 ```bash
 brew services start bdombro/obsidian-mcp/obsidian-mcp
@@ -72,11 +70,7 @@ brew services restart bdombro/obsidian-mcp/obsidian-mcp
 brew services stop bdombro/obsidian-mcp/obsidian-mcp
 ```
 
-The endpoint is `http://127.0.0.1:10001/mcp`; logs are under
-`/opt/homebrew/var/log/`. To run in the foreground instead, use
-`obsidian-mcp http` (or `./build/bin/obsidian-mcp http` from a source checkout).
-Do not run the foreground server and service on the same port.
-Keep the default loopback bind; this is not a shared remote-host deployment.
+The endpoint is `http://127.0.0.1:10001/mcp` (the service binds `0.0.0.0:10001` by default). Service working directory is `$(brew --prefix)/var/obsidian-mcp`, and logs are written to `$(brew --prefix)/var/log/obsidian-mcp.log` (rotated at 10 MiB, keeping one `.1` file). To run in the foreground instead, use `obsidian-mcp http` (or `./build/bin/obsidian-mcp http --port 20001` from a source checkout). Do not run the foreground server and service on the same port.
 
 
 ## Connect Your Agent
@@ -139,9 +133,9 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 # Start stdio MCP server
 ./build/bin/obsidian-mcp mcp
 
-# Start Streamable HTTP server (defaults to 127.0.0.1:10001)
+# Start Streamable HTTP server (defaults to 0.0.0.0:10001)
 ./build/bin/obsidian-mcp http
-./build/bin/obsidian-mcp http --host 127.0.0.1 --port 0 --allow-ephemeral-port
+./build/bin/obsidian-mcp http --host 127.0.0.1 --port 20001
 ```
 
 ## Architecture & Vault Isolation
@@ -153,11 +147,13 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 
 ## Environment Variables
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `OBSIDIAN_VAULT` | `$HOME/Documents/Notes` | Root directory of the Obsidian Markdown vault |
-| `OBSIDIAN_CONVENTIONS_FILE` | XDG/private file, then embedded guide | Optional private conventions override, loaded only on resource reads |
-| `BUGSINK_DSN` | Unset (disabled) | Sentry-compatible error reporting DSN (`""` disables reporting) |
+Configure service variables in `$(brew --prefix)/etc/obsidian-mcp/env` (`chmod 600`):
+
+| Name | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `OBSIDIAN_VAULT` | No | `$HOME/Documents/Notes` | Root directory of the Obsidian Markdown vault |
+| `OBSIDIAN_CONVENTIONS_FILE` | No | XDG/private file, then embedded guide | Optional private conventions override, loaded only on resource reads |
+| `BUGSINK_DSN` | No | Unset (disabled) | Sentry-compatible error reporting DSN (`""` disables reporting) |
 
 ## Troubleshooting
 
@@ -166,101 +162,11 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
   `"protocol": "2026-07-28"`; old `initialize` clients will fail.
 - **Port occupied:** inspect the listener and stop only the service/process
   you own, or deliberately choose another port and update the client URL.
-- **Works in a terminal, not as a service:** launchd does not inherit
-  `~/.zshrc`. Configure the service environment separately or use the
-  plugin's supported private configuration file; inspect
-  `/opt/homebrew/var/log/` for errors.
+- **Works in a terminal, not as a service:** launchd and systemd do not inherit
+  `~/.zshrc`. Put service variables in `$(brew --prefix)/etc/obsidian-mcp/env`
+  and inspect `$(brew --prefix)/var/log/obsidian-mcp.log` for errors.
 - **Vault unavailable:** verify the configured vault path, ownership and service permissions. Tests never use the live vault.
-- **Source build cannot find vcpkg or slimr ports:** load the development
-  environment, bootstrap vcpkg, and register both slimr links and the pinned
-  libhv overlay. Never repair this by editing installed headers.
-- **Compiler/hardening check fails:** upgrade the Xcode toolchain; set
-  `CXX` before first configure. CMake caches the compiler, so an intentional
-  compiler change needs a fresh configuration tree.
-
 
 ## Development
 
-This section is for building or changing the server, not configuring an
-installed binary. [Architecture, transport reference and test details](docs/development.md)
-are separate from the user setup flow.
-
-<details>
-<summary>macOS source-build setup (vcpkg and local slimr overlays)</summary>
-
-## macOS Build Prerequisites (vcpkg setup)
-
-Install [Homebrew](https://brew.sh) and current Xcode Command Line Tools
-(`xcode-select --install`; finish installation before continuing), or full Xcode.
-Apple Clang 21 is the verified C++26/libc++ toolchain; older installations need
-upgrading. These instructions assume Apple Silicon Homebrew at `/opt/homebrew`.
-
-Add this environment snippet to `~/.zshrc`, then open a new terminal (or run
-`source ~/.zshrc`). Use `~/.zshrc`, not `~/.zshenv`, to avoid changing
-non-interactive zsh scripts:
-
-`local-ports` is the dedicated vcpkg overlay directory for local development
-linking: `just publish --local --all` registers symlinks to your slimr-cpp checkout,
-overriding published packages without making a registry release. See the
-[publishing guide on slimr-cpp](https://github.com/bdombro/slimr-cpp/blob/main/docs/publishing.md#local-environment).
-
-```bash
-export VCPKG_ROOT="$HOME/.local/share/vcpkg"
-export VCPKG_OVERLAY_PORTS="$VCPKG_ROOT/local-ports"
-# Use your existing workspace checkout instead when available.
-export SLIMR_CPP="${SLIMR_CPP:-$HOME/dev/bdombro/slimr-cpp}"
-export CXX="/usr/bin/clang++"
-export CLANG_TIDY="/opt/homebrew/opt/llvm/bin/clang-tidy"
-export PATH="$VCPKG_ROOT:/opt/homebrew/opt/ruby/bin:/opt/homebrew/bin:$PATH"
-```
-
-Then install and build from the repository root:
-
-```bash
-brew install cmake ninja just llvm node ruby autoconf automake libtool pkgconf
-mkdir -p "$(dirname "$VCPKG_ROOT")"
-if [ ! -d "$VCPKG_ROOT/.git" ]; then
-  git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
-fi
-"$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
-mkdir -p "$(dirname "$SLIMR_CPP")"
-if [ ! -d "$SLIMR_CPP/.git" ]; then
-  git clone https://github.com/bdombro/slimr-cpp.git "$SLIMR_CPP"
-fi
-(cd "$SLIMR_CPP" && just publish --local --all)
-ln -s "$SLIMR_CPP/ports/libhv" "$VCPKG_OVERLAY_PORTS/libhv"
-
-"$CXX" --version
-vcpkg version
-BUGSINK_DSN="" just test
-just build
-```
-
-The libhv link is a one-time step: if it exists, verify that it points to the
-chosen checkout's `ports/libhv` before skipping the command. Never overwrite
-a conflicting port directory or modify installed headers/caches. Current HTTP
-builds need both local slimr overlays and the separately pinned libhv port;
-the older published registry baseline alone is not an HTTP build substitute.
-`just deps` installs native dependencies into `build/deps/`; no separate
-Homebrew curl/OpenSSL library installation is required.
-
-Bootstrapping puts the executable at `$VCPKG_ROOT/vcpkg`, with no `bin/`
-subdirectory. Keg-only Homebrew Ruby supplies `/opt/homebrew/opt/ruby/bin/ruby`.
-Homebrew LLVM supplies lint tooling, not an implicit compiler override.
-Set a different compatible `CXX` before first configure; CMake caches it.
-For reproducible vcpkg tooling, check out the tested full `VCPKG_REF` commit
-before bootstrapping; package registry baselines pin resolution separately.
-Obsidian itself is optional: the server reads Markdown directly. Build/test
-commands do not start services or touch your live vault.
-
-</details>
-
-After the source build succeeds, stage and install the local Homebrew formula:
-
-```bash
-just install-local
-```
-
-Installing a formula and starting its service are separate actions.
-For a source-only foreground run, use
-`./build/bin/obsidian-mcp http`.
+For building from source, running tests, linting, and releasing, see [docs/development.md](docs/development.md).
