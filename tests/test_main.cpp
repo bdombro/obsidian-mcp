@@ -665,7 +665,7 @@ TEST_SUITE("app / mcp") {
         CHECK(discResp["result"]["resultType"].get<std::string>() == "complete");
         CHECK(discResp["result"]["supportedVersions"][0].get<std::string>() == "2026-07-28");
         CHECK(discResp["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"].get<std::string>() == "obsidian-mcp");
-        CHECK(discResp["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"].get<std::string>() == "2.0.0");
+        CHECK(discResp["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["version"].get<std::string>() == OBSIDIAN_APP_VERSION);
 
         // 3. tools/list
         Json listResp = app.dispatchMcpJson(make_req(3, "tools/list"));
@@ -697,7 +697,7 @@ TEST_SUITE("app / mcp") {
         Json statusResp = app.dispatchMcpJson(make_req(5, "tools/call", std::move(statusParams)));
         CHECK(!statusResp["result"]["isError"].get<bool>());
         auto statusContent = statusResp["result"]["content"].get<Json::array_t>();
-        CHECK(statusContent[0]["text"].get<std::string>().find("\"version\":\"2.0.0\"") != std::string::npos);
+        CHECK(statusContent[0]["text"].get<std::string>().find(std::string("\"version\":\"") + OBSIDIAN_APP_VERSION + "\"") != std::string::npos);
     }
 
     TEST_CASE("http transport, cli flags, discovery, tools, and concurrency") {
@@ -806,7 +806,7 @@ TEST_SUITE("app / mcp") {
             int rc = app.run(2, statusArgv);
             std::cout.rdbuf(oldOut);
             CHECK(rc == 0);
-            CHECK(ss.str().find("\"version\":\"2.0.0\"") != std::string::npos);
+            CHECK(ss.str().find(std::string("\"version\":\"") + OBSIDIAN_APP_VERSION + "\"") != std::string::npos);
         }
 
         // 3. Ephemeral HTTP server
