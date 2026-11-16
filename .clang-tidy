@@ -1,4 +1,9 @@
-Checks: '-*,clang-analyzer-core.*,clang-analyzer-cplusplus.NewDelete,bugprone-dangling-handle,bugprone-sizeof-expression'
+# Pending lint follow-ups (enable one check per reviewed commit):
+#   -bugprone-narrowing-conversions (5 findings)
+#   -bugprone-misplaced-widening-cast (2 findings)
+#   -bugprone-unused-local-non-trivial-variable (1 finding)
+#   -bugprone-exception-escape (1 finding)
+Checks: '-*,clang-analyzer-core.*,clang-analyzer-cplusplus.*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-signed-bitwise,-bugprone-throwing-static-initialization,-bugprone-reserved-identifier,-bugprone-branch-clone,-bugprone-macro-parentheses,-bugprone-lambda-function-name,-bugprone-std-exception-baseclass,-bugprone-switch-missing-default-case,-bugprone-argument-comment,-bugprone-unintended-char-ostream-output,-bugprone-narrowing-conversions,-bugprone-misplaced-widening-cast,-bugprone-unused-local-non-trivial-variable,-bugprone-exception-escape'
 WarningsAsErrors: '*'
 HeaderFilterRegex: '[/\\](src|tests)[/\\]'
 SystemHeaders: false
