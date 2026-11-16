@@ -6,7 +6,7 @@
   "registries": [
     {
       "kind": "git",
-      "baseline": "83e6cb8a13a1635ac4fd92906003e8a42a0fbed0",
+      "baseline": "75da5e3fe947ad52d5516c10eaf5c4e9fc2fe9a1",
       "repository": "https://github.com/slimr-down-now/mcp.git",
       "packages": [
         "slimr-mcp"

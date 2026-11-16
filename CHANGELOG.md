@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Re-enable direct CLI tool calls (`obsidian-mcp <tool> '{...}'`), now opt-in since `slimr-mcp` v0.1.4
 - Internal: upgrade `slimr-mcp` (`cpp-httplib`) and `slimr-bugsink`, dropping `libhv` and `slimr-curl` references.
 - Internal: switch macOS builds to llvm@23 with static libc++ and symbol hiding.
 
