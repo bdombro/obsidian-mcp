@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) try {
     }
 
     auto app = obsidian::make_obsidian_app();
-    slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 10001});
+    slimr::enable_http(app, slimr::HttpServerOptions{.port = 10001});
     return app.run(static_cast<int>(filteredArgv.size()), filteredArgv.data());
 } catch (const std::exception &e) {
     std::cerr << "obsidian-mcp: fatal: " << e.what() << "\n";
