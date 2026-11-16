@@ -1,16 +1,16 @@
 class ObsidianMcp < Formula
   desc "Read, search, write, append, and rename notes in an Obsidian vault over MCP"
   homepage "https://github.com/bdombro/obsidian-mcp"
-  version "2.1.0"
+  version "2.2.0"
 
   on_macos do
-    url "https://github.com/bdombro/obsidian-mcp/releases/download/v2.1.0/obsidian-mcp-arm64-macos.tar.gz"
-    sha256 "269b1777086a36a8ed2c28b7ba55ce06b597f4cbb6ce872966f15ae325df5c18"
+    url "https://github.com/bdombro/obsidian-mcp/releases/download/v2.2.0/obsidian-mcp-arm64-macos.tar.gz"
+    sha256 "95ad106a9a8096259913bd86ccca1f4b407f8050ade93b2aa88324a0f41c4ee2"
   end
 
   on_linux do
-    url "https://github.com/bdombro/obsidian-mcp/releases/download/v2.1.0/obsidian-mcp-x64-linux.tar.gz"
-    sha256 "8fdd85b1697a1ae338d02e9265a0d4e4e9ce3852280320145386e6f3d95f07c7"
+    url "https://github.com/bdombro/obsidian-mcp/releases/download/v2.2.0/obsidian-mcp-x64-linux.tar.gz"
+    sha256 "5f51a72aafbbad34748c52d083dab224f7192751ec929aa2ee5f2abc4efe4ff7"
   end
 
   def install
