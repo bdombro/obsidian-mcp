@@ -50,10 +50,10 @@ plugins/obsidian-mcp/
 
 ### Libraries Used
 
-- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, stdio NDJSON MCP `2026-07-28` server, Streamable HTTP (`libhv`), and `obsidian://conventions` resource registration.
+- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, stdio NDJSON MCP `2026-07-28` server, Streamable HTTP (`cpp-httplib`), and `obsidian://conventions` resource registration.
 - **`<glaze/yaml.hpp>`:** YAML frontmatter parsing (`aliases`, `tags`, key-value filters).
 - **`<json.hpp>` (`glaze`):** RFC-8259 JSON serialization.
-- **`<bugsink.hpp>` (`-lcurl`):** Optional exception reporting configured with `BUGSINK_DSN`.
+- **`<bugsink.hpp>`:** Optional exception reporting configured with `BUGSINK_DSN`.
 - **`<test.hpp>` (`doctest`):** Temp-vault fixture testing with `-fsanitize=address,undefined`.
 - **C++26 Standard Library:** `<filesystem>`, `<shared_mutex>`, `<regex>` (wikilink/embed/markdown link rewriting).
 
