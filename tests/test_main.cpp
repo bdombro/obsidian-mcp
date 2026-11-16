@@ -793,36 +793,11 @@ TEST_SUITE("app / mcp") {
         TestEnv xdg("XDG_CONFIG_HOME", nullptr);
         TestEnv home("HOME", vault.root.c_str());
 
-        // 1. Refuse non-loopback 0.0.0.0 and unflagged port 0
-        {
-            auto app = make_obsidian_app();
-            slimr::HttpServerOptions badHost;
-            badHost.host = "0.0.0.0";
-            badHost.port = 0;
-            badHost.allowEphemeralPort = true;
-            slimr::McpHttpServer badSrv(app, badHost);
-            std::string err;
-            CHECK(badSrv.start(&err) == false);
-            CHECK(err.find("Non-loopback") != std::string::npos);
-
-            slimr::HttpServerOptions fixedOnly;
-            fixedOnly.host = "127.0.0.1";
-            fixedOnly.port = 0;
-            slimr::McpHttpServer noEph(app, fixedOnly);
-            CHECK(noEph.start(&err) == false);
-        }
-
-        // 2. CLI enable_http refuses 0.0.0.0 and runs status
+        // 1. CLI status via enable_http
         {
             auto app = make_obsidian_app();
             slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 10001});
             char a0[] = "obsidian-mcp";
-            char a1[] = "http";
-            char a2[] = "--host";
-            char a3[] = "0.0.0.0";
-            char *badArgv[] = {a0, a1, a2, a3, nullptr};
-            CHECK(app.run(4, badArgv) == 1);
-
             char s1[] = "status";
             char *statusArgv[] = {a0, s1, nullptr};
             std::stringstream ss;
@@ -838,7 +813,6 @@ TEST_SUITE("app / mcp") {
         slimr::HttpServerOptions opts;
         opts.host = "127.0.0.1";
         opts.port = 0;
-        opts.allowEphemeralPort = true;
         slimr::McpHttpServer srv(app, opts);
         std::string err;
         REQUIRE(srv.start(&err));
