@@ -35,9 +35,25 @@ class ObsidianMcp < Formula
   end
 
   test do
+    require "net/http"
     assert_match version.to_s, shell_output("#{bin}/obsidian-mcp --version")
-    discover = '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
-    out = pipe_output("#{bin}/obsidian-mcp mcp --skip-checks", "#{discover}\n")
-    assert_match "obsidian-mcp", out
+    r, w = IO.pipe
+    pid = spawn("#{bin}/obsidian-mcp", "--skip-checks", "http", "--host", "127.0.0.1", "--port", "0", err: w)
+    w.close
+    begin
+      port = nil
+      r.each_line { |line| break if (port = line[%r{listening on http://[\d.]+:(\d+)/mcp}, 1]) }
+      assert port, "server did not report a listening port"
+      discover = '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
+      res = Net::HTTP.post(URI("http://127.0.0.1:#{port}/mcp"), discover,
+                           "Content-Type"         => "application/json",
+                           "Accept"               => "application/json, text/event-stream",
+                           "MCP-Protocol-Version" => "2026-07-28",
+                           "Mcp-Method"           => "server/discover")
+      assert_match "obsidian-mcp", res.body
+    ensure
+      Process.kill("TERM", pid)
+      Process.wait(pid)
+    end
   end
 end

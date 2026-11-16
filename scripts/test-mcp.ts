@@ -60,46 +60,6 @@ function assertToolsListResult(resp: any, label: string): Map<string, any> {
   return tools;
 }
 
-async function runStdioSession(messages: unknown[]): Promise<Map<number, any>> {
-  const child = spawn(binary, ["--skip-checks", "mcp"], {
-    cwd: temporary,
-    env: isolatedEnv(),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
-
-  let stdout = "";
-  let stderr = "";
-  child.stdout.setEncoding("utf8").on("data", chunk => { stdout += chunk; });
-  child.stderr.setEncoding("utf8").on("data", chunk => { stderr += chunk; });
-
-  const timer = setTimeout(() => {
-    child.kill("SIGKILL");
-  }, 15000);
-
-  try {
-    for (const msg of messages) {
-      child.stdin.write(`${JSON.stringify(msg)}\n`);
-    }
-    child.stdin.end();
-
-    const code = await new Promise<number | null>((resolve, reject) => {
-      child.once("error", reject);
-      child.once("close", c => resolve(c));
-    });
-    assert.equal(code, 0, `Stdio server exited ${code}; stderr: ${stderr}`);
-    const responses = new Map<number, any>();
-    for (const line of stdout.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const obj = JSON.parse(trimmed);
-      if (obj.id !== undefined) responses.set(obj.id, obj);
-    }
-    return responses;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 async function runHttpChecks(): Promise<{ serverName: string; toolCount: number }> {
   const child = spawn(binary, ["--skip-checks", "http", "--host", "127.0.0.1", "--port", "0"], {
     cwd: temporary,
@@ -191,27 +151,9 @@ async function runHttpChecks(): Promise<{ serverName: string; toolCount: number 
 }
 
 try {
-  const responses = await runStdioSession([
-    rpcRequest(1, "server/discover"),
-    rpcRequest(2, "tools/list"),
-    {
-      jsonrpc: "2.0",
-      id: 3,
-      method: "initialize",
-      params: { protocolVersion: "2025-11-25" },
-    },
-  ]);
-
-  const stdioName = assertDiscoverResult(responses.get(1), "stdio");
-  const stdioTools = assertToolsListResult(responses.get(2), "stdio");
-  assert.equal(responses.get(3)?.error?.code, -32601, "Stdio legacy initialize must fail with -32601");
-
-  const httpRes = await runHttpChecks();
-  assert.equal(httpRes.serverName, stdioName, "HTTP serverInfo.name must match stdio");
-  assert.equal(httpRes.toolCount, stdioTools.size, "HTTP tool count must match stdio");
-
+  const { serverName, toolCount } = await runHttpChecks();
   assert.deepEqual(readdirSync(temporary), [], "Server created files during discovery");
-  console.log(`MCP 2026-07-28 stdio+http conformance passed: ${stdioName}, ${stdioTools.size} tools`);
+  console.log(`MCP 2026-07-28 http conformance passed: ${serverName}, ${toolCount} tools`);
 } finally {
   rmSync(temporary, { recursive: true, force: true });
 }

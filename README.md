@@ -11,7 +11,7 @@
 
 Search, read, and safely edit notes in your Obsidian vault through MCP (`2026-07-28`). Find notes by title, alias, tag, or content; rename a note and update its backlinks across the vault.
 
-Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:10001/mcp`), **stdio** (`mcp`), or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
+Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:10001/mcp`) or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
 
 > **Client compatibility:** MCP **2026-07-28 only**; legacy clients cannot connect.
 > The workspace has been exercised with OpenCode v2.2.6 using explicit July
@@ -93,14 +93,14 @@ After starting the service, add this server to OpenCode v2.2.6's
 ```
 
 Use either an explicit server entry or a plugin manifest, not both.
-Alternative client schemas and stdio configuration are in the
+Alternative client schemas are in the
 [developer reference](docs/development.md). The compatibility notice above
 applies to every transport.
 
 
 ## Tools & CLI Commands
 
-Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidian-mcp mcp`), and on the CLI as `obsidian-mcp <tool> ['{"arg":"val"}']`.
+Every tool is exposed over Streamable HTTP (`obsidian-mcp http`) and on the CLI as `obsidian-mcp <tool> ['{"arg":"val"}']`.
 
 | Tool | Mutating | Description |
 | --- | --- | --- |
@@ -129,9 +129,6 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`), stdio (`obsidi
 
 # Status (no JSON argument needed when all fields are optional)
 ./build/bin/obsidian-mcp status
-
-# Start stdio MCP server
-./build/bin/obsidian-mcp mcp
 
 # Start Streamable HTTP server (defaults to 0.0.0.0:10001)
 ./build/bin/obsidian-mcp http

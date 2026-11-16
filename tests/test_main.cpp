@@ -671,8 +671,13 @@ TEST_SUITE("app / mcp") {
         Json listResp = app.dispatchMcpJson(make_req(3, "tools/list"));
         auto tools = listResp["result"]["tools"].get<Json::array_t>();
         std::vector<std::string> toolNames;
-        for (const auto &t : tools)
+        for (const auto &t : tools) {
             toolNames.push_back(t["name"].get<std::string>());
+            if (t["name"].get<std::string>() != "mcp_resource_read") {
+                CHECK(t.contains("outputSchema"));
+                CHECK(t["outputSchema"]["type"].get<std::string>() == "object");
+            }
+        }
         CHECK(std::find(toolNames.begin(), toolNames.end(), "read") != toolNames.end());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "write") != toolNames.end());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "append") != toolNames.end());
@@ -696,6 +701,7 @@ TEST_SUITE("app / mcp") {
         statusParams["arguments"] = slimr::json_obj();
         Json statusResp = app.dispatchMcpJson(make_req(5, "tools/call", std::move(statusParams)));
         CHECK(!statusResp["result"]["isError"].get<bool>());
+        CHECK(statusResp["result"]["structuredContent"]["version"].get<std::string>() == OBSIDIAN_APP_VERSION);
         auto statusContent = statusResp["result"]["content"].get<Json::array_t>();
         CHECK(statusContent[0]["text"].get<std::string>().find(std::string("\"version\":\"") + OBSIDIAN_APP_VERSION + "\"") != std::string::npos);
     }

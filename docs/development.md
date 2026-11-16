@@ -9,7 +9,7 @@ CI configuration is not evidence that a runner/platform/client has passed.
 
 ## App Architecture
 
-The standalone Streamable HTTP server, stdio MCP server, and JSON CLI are implemented in C++26 on `slimr-mcp`.
+The standalone Streamable HTTP server and JSON CLI are implemented in C++26 on `slimr-mcp`.
 
 ```text
 plugins/obsidian-mcp/
@@ -33,14 +33,14 @@ plugins/obsidian-mcp/
 │   ├── doctor.sh             # Toolchain & environment check
 │   ├── formula-shared.ts     # Shared release/formula helpers
 │   ├── release.ts            # Version bump, changelog, formula & release helper
-│   └── test-mcp.ts           # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
+│   └── test-mcp.ts           # Native MCP 2026-07-28 ephemeral HTTP conformance check
 ├── triplets/
 │   ├── arm64-osx.cmake       # macOS 15.0 deployment target overlay triplet
 │   └── x64-linux.cmake       # Linux Homebrew llvm@23 libc++ overlay triplet
 ├── src/
 │   ├── app.hpp               # Vault path isolation, frontmatter/tag parser, search/rename engine, and `make_obsidian_app()`
 │   ├── log_file.hpp          # `--log-file` redirection and 10 MiB log rotation
-│   └── main.cpp              # Standalone CLI, stdio (`mcp`), and Streamable HTTP (`http`) entrypoint
+│   └── main.cpp              # Standalone CLI and Streamable HTTP (`http`) entrypoint
 ├── tests/
 │   ├── test_log_file.hpp     # Log rotation unit tests
 │   └── test_main.cpp         # Unit, temp-vault, HTTP, CLI, and concurrency tests
@@ -50,7 +50,7 @@ plugins/obsidian-mcp/
 
 ### Libraries Used
 
-- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, stdio NDJSON MCP `2026-07-28` server, Streamable HTTP (`cpp-httplib`), and `obsidian://conventions` resource registration.
+- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, Streamable HTTP (`cpp-httplib`), and `obsidian://conventions` resource registration.
 - **`<glaze/yaml.hpp>`:** YAML frontmatter parsing (`aliases`, `tags`, key-value filters).
 - **`<json.hpp>` (`glaze`):** RFC-8259 JSON serialization.
 - **`<bugsink.hpp>`:** Optional exception reporting configured with `BUGSINK_DSN`.
@@ -90,22 +90,6 @@ Start the background service (`just install` or `brew services start bdombro/obs
 
 Plugin marketplace manifests are included in `.cursor-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`.
 
-### Stdio Transport (`.mcp.json`)
-
-```json
-{
-  "mcpServers": {
-    "obsidian-mcp": {
-      "command": "/absolute/path/to/obsidian-mcp/build/bin/obsidian-mcp",
-      "args": ["mcp"],
-      "env": {
-        "OBSIDIAN_VAULT": "/absolute/path/to/vault"
-      }
-    }
-  }
-}
-```
-
 ## Building & Testing
 
 Run `just doctor` to verify required tools (`brew`, `bun`, `cmake`, `gh`, `git`, `jq`, `just`, `ninja`, `vcpkg`, `LLVM_BIN` from `llvm@23`, and a C++26 compiler).
@@ -121,7 +105,7 @@ just test      # Debug ASan/UBSan tests (optional doctest filter: just test "cas
 just build     # Optimized IPO Release binary at build/bin/obsidian-mcp (no tests)
 just fmt       # Format C++ sources and justfile
 just lint      # Format check + clang-tidy bug-finding checks
-just test-mcp  # Native MCP 2026-07-28 stdio + ephemeral HTTP conformance check
+just test-mcp  # Native MCP 2026-07-28 ephemeral HTTP conformance check
 just clean     # Remove build/
 ```
 
