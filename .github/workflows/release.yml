@@ -111,10 +111,18 @@ jobs:
             target="x64-linux"
           fi
           if [ "${{ runner.os }}" = "macOS" ] && [ -d build/bin ]; then
-            if find build/bin -type f -perm -u+x -exec otool -L {} + | grep -F "$(brew --prefix)/"; then
-              echo "::error::macOS release binary must not link Homebrew libraries"
-              exit 1
-            fi
+            while IFS= read -r bin; do
+              bad_libs="$(otool -L "$bin" | tail -n +2 | sed -E 's/^[[:space:]]+([^[:space:]]+).*/\1/' | grep -Ev '^(/System/Library/|/usr/lib/libSystem\.B\.dylib$|/usr/lib/libobjc\.A\.dylib$)' || true)"
+              if [ -n "$bad_libs" ]; then
+                echo "::error::macOS release binary $bin links unexpected libraries: $bad_libs"
+                exit 1
+              fi
+              exported="$(nm -gU "$bin")"
+              if [ -n "$exported" ]; then
+                echo "::error::macOS release binary $bin must not export symbols (missing -Wl,-exported_symbols_list,/dev/null)"
+                exit 1
+              fi
+            done < <(find build/bin -type f -perm -u+x)
           fi
           if [ "$kind" = "formula" ]; then
             if [ "${{ runner.os }}" = "Linux" ]; then

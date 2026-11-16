@@ -110,7 +110,7 @@ Plugin marketplace manifests are included in `.cursor-plugin/plugin.json`, `.cla
 
 Run `just doctor` to verify required tools (`brew`, `bun`, `cmake`, `gh`, `git`, `jq`, `just`, `ninja`, `vcpkg`, `LLVM_BIN` from `llvm@23`, and a C++26 compiler).
 
-- **macOS:** uses Apple Clang (`/usr/bin/clang++`) with `CMAKE_OSX_DEPLOYMENT_TARGET=15.0`. `llvm@23` provides `clang-format` and `clang-tidy` only (`LLVM_BIN` defaults to `$(brew --prefix llvm@23)/bin`).
+- **macOS:** uses Homebrew `llvm@23` (`clang`/`clang++`) with static `libc++`, symbol hiding, and `CMAKE_OSX_DEPLOYMENT_TARGET=15.0` (`LLVM_BIN` defaults to `$(brew --prefix llvm@23)/bin`).
 - **Linux (`ubuntu-24.04`):** uses Homebrew `llvm@23` (`clang++` with `-stdlib=libc++`, static libc++ in Release builds) and Homebrew `brew services` via `systemd --user` (`loginctl enable-linger "$USER"`).
 
 Dependencies are declared in `vcpkg.json` and resolved from the `slimr-*` registries pinned in `vcpkg-configuration.json`. `just deps` installs into `build/deps/` for the detected native triplet (`triplets/arm64-osx.cmake` or `triplets/x64-linux.cmake`). `just upgrade-deps` pulls `$VCPKG_ROOT`, updates baselines, and runs `just test`.
