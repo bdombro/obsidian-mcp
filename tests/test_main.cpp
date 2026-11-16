@@ -1,6 +1,7 @@
 #define SLIMR_TEST_MAIN
 #include "app.hpp"
 #include "test.hpp"
+#include "test_log_file.hpp"
 #include <mcp_http.hpp>
 
 #include <arpa/inet.h>
