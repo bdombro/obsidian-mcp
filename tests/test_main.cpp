@@ -1,6 +1,6 @@
 #define SLIMR_TEST_MAIN
-#include "test.hpp"
 #include "app.hpp"
+#include "test.hpp"
 #include <mcp_http.hpp>
 
 #include <arpa/inet.h>
@@ -23,18 +23,23 @@ struct TestEnv {
     std::string name;
     std::optional<std::string> previous;
 
-    TestEnv(const TestEnv&) = delete;
-    TestEnv& operator=(const TestEnv&) = delete;
+    TestEnv(const TestEnv &) = delete;
+    TestEnv &operator=(const TestEnv &) = delete;
 
-    TestEnv(std::string key, const char* value) : name(std::move(key)) {
-        if (const char* old = std::getenv(name.c_str())) previous = old;
-        if (value) setenv(name.c_str(), value, 1);
-        else unsetenv(name.c_str());
+    TestEnv(std::string key, const char *value) : name(std::move(key)) {
+        if (const char *old = std::getenv(name.c_str()))
+            previous = old;
+        if (value)
+            setenv(name.c_str(), value, 1);
+        else
+            unsetenv(name.c_str());
     }
 
     ~TestEnv() {
-        if (previous) setenv(name.c_str(), previous->c_str(), 1);
-        else unsetenv(name.c_str());
+        if (previous)
+            setenv(name.c_str(), previous->c_str(), 1);
+        else
+            unsetenv(name.c_str());
     }
 };
 
@@ -42,28 +47,26 @@ struct TestVault {
     std::filesystem::path root;
     std::optional<std::string> previous_env;
 
-    TestVault(const TestVault&) = delete;
-    TestVault& operator=(const TestVault&) = delete;
+    TestVault(const TestVault &) = delete;
+    TestVault &operator=(const TestVault &) = delete;
 
-    explicit TestVault(const std::map<std::string, std::string>& files) {
+    explicit TestVault(const std::map<std::string, std::string> &files) {
         static uint64_t counter = 0;
         counter++;
-        auto tmp_base = std::filesystem::temp_directory_path() / (
-            "obsidian-vault-" + std::to_string(getpid()) + "_" +
-            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_" +
-            std::to_string(counter)
-        );
+        auto tmp_base = std::filesystem::temp_directory_path() / ("obsidian-vault-" + std::to_string(getpid()) + "_" +
+                                                                  std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_" +
+                                                                  std::to_string(counter));
         std::filesystem::create_directories(tmp_base);
         root = tmp_base;
 
-        for (const auto& [rel, text] : files) {
+        for (const auto &[rel, text] : files) {
             auto abs = root / rel;
             std::filesystem::create_directories(abs.parent_path());
             std::ofstream out(abs, std::ios::binary);
             out.write(text.data(), text.size());
         }
 
-        const char* prev = std::getenv("OBSIDIAN_VAULT");
+        const char *prev = std::getenv("OBSIDIAN_VAULT");
         if (prev) {
             previous_env = std::string(prev);
         } else {
@@ -72,7 +75,7 @@ struct TestVault {
         setenv("OBSIDIAN_VAULT", root.c_str(), 1);
     }
 
-    std::string read(const std::string& rel) const {
+    std::string read(const std::string &rel) const {
         auto abs = root / rel;
         std::ifstream in(abs, std::ios::binary);
         std::ostringstream ss;
@@ -128,13 +131,11 @@ TEST_SUITE("vaultPath") {
 
 TEST_SUITE("notePaths") {
     TEST_CASE("lists markdown notes and skips dot folders and attachments") {
-        TestVault vault({
-            {"A.md", ""},
-            {"People/B.md", ""},
-            {".obsidian/C.md", ""},
-            {".trash/D.md", ""},
-            {"Places/photo.png", ""}
-        });
+        TestVault vault({{"A.md", ""},
+                         {"People/B.md", ""},
+                         {".obsidian/C.md", ""},
+                         {".trash/D.md", ""},
+                         {"Places/photo.png", ""}});
         auto allNotes = note_paths();
         std::vector<std::string> expected = {"A.md", "People/B.md"};
         CHECK(allNotes == expected);
@@ -147,11 +148,9 @@ TEST_SUITE("notePaths") {
 
 TEST_SUITE("noteResolve") {
     TEST_CASE("resolves by exact path, file name, then alias, ignoring case") {
-        TestVault vault({
-            {"People/Jane Doe.md", "---\naliases: [\"Nana\", \"JD\"]\n---\nbody"},
-            {"Places/Cafe - Town.md", "---\naliases:\n  - Coffee Spot\n---\n"},
-            {"Jane.md", ""}
-        });
+        TestVault vault({{"People/Jane Doe.md", "---\naliases: [\"Nana\", \"JD\"]\n---\nbody"},
+                         {"Places/Cafe - Town.md", "---\naliases:\n  - Coffee Spot\n---\n"},
+                         {"Jane.md", ""}});
 
         CHECK(note_resolve("People/Jane Doe.md") == "People/Jane Doe.md");
         CHECK(note_resolve("people/jane doe") == "People/Jane Doe.md");
@@ -316,8 +315,7 @@ TEST_SUITE("append command") {
 
         append_note("Spot", "- Water", "## Services");
         CHECK(vault.read("Spot.md") ==
-            "---\naliases: [Spot]\n---\n# Spot\n\n## Contacts\n- Anna\n- Bob\n\n## Services\n- Power\n\n### Sub\n- x\n- Water\n"
-        );
+              "---\naliases: [Spot]\n---\n# Spot\n\n## Contacts\n- Anna\n- Bob\n\n## Services\n- Power\n\n### Sub\n- x\n- Water\n");
     }
 
     TEST_CASE("refuses a missing heading and lists the real ones") {
@@ -328,11 +326,9 @@ TEST_SUITE("append command") {
 
 TEST_SUITE("list command") {
     TEST_CASE("lists a folder's notes, subfolders and front matter keys") {
-        TestVault vault({
-            {"People/A.md", "---\ntags: [person]\ncircle: family\n---\n"},
-            {"People/Sub/B.md", ""},
-            {"People/.hidden/C.md", ""}
-        });
+        TestVault vault({{"People/A.md", "---\ntags: [person]\ncircle: family\n---\n"},
+                         {"People/Sub/B.md", ""},
+                         {"People/.hidden/C.md", ""}});
 
         ListOutput out = list_notes("People");
         CHECK(out.folders.get() == std::vector<std::string>{"People/Sub"});
@@ -348,7 +344,8 @@ TEST_SUITE("list command") {
 
         ListOutput recOut = list_notes("People/", true);
         std::vector<std::string> recPaths;
-        for (const auto& n : recOut.notes.get()) recPaths.push_back(n.path.get());
+        for (const auto &n : recOut.notes.get())
+            recPaths.push_back(n.path.get());
         std::vector<std::string> expectedPaths = {"People/A.md", "People/Sub/B.md"};
         CHECK(recPaths == expectedPaths);
 
@@ -358,21 +355,20 @@ TEST_SUITE("list command") {
 
 TEST_SUITE("search command") {
     TEST_CASE("search query, tags, front matter, snippets, and limit") {
-        TestVault vault({
-            {"People/Jane Doe.md",
-             "---\ntags: [person]\ncircle: family\naliases: [\"Nana\"]\nkids: [\"[[Sam Doe]]\"]\n---\nLoves the open evening at Maynooth.\n"},
-            {"People/Bob Smith.md",
-             "---\ntags: [person]\ncircle: coworker\n---\nWorks at Maynooth office. #health/meds\n"},
-            {"Places/Maynooth School.md",
-             "---\ntags: [school]\n---\nOpen day in March.\n```\n#notatag\n```\n"},
-            {"Log/2026.md",
-             "- 2026.01.01 Party #social\n"},
-            {".obsidian/hidden.md", "Maynooth"}
-        });
+        TestVault vault({{"People/Jane Doe.md",
+                          "---\ntags: [person]\ncircle: family\naliases: [\"Nana\"]\nkids: [\"[[Sam Doe]]\"]\n---\nLoves the open evening at Maynooth.\n"},
+                         {"People/Bob Smith.md",
+                          "---\ntags: [person]\ncircle: coworker\n---\nWorks at Maynooth office. #health/meds\n"},
+                         {"Places/Maynooth School.md",
+                          "---\ntags: [school]\n---\nOpen day in March.\n```\n#notatag\n```\n"},
+                         {"Log/2026.md",
+                          "- 2026.01.01 Party #social\n"},
+                         {".obsidian/hidden.md", "Maynooth"}});
 
-        auto paths = [](const SearchOutput& out) {
+        auto paths = [](const SearchOutput &out) {
             std::vector<std::string> res;
-            for (const auto& r : out.results.get()) res.push_back(r.path.get());
+            for (const auto &r : out.results.get())
+                res.push_back(r.path.get());
             return res;
         };
 
@@ -462,12 +458,10 @@ TEST_SUITE("rename command") {
         "front: [\"[[Old Name]]\"]";
 
     TEST_CASE("rewrites every link form across the vault") {
-        TestVault vault({
-            {"People/Old Name.md", "---\ntags: [person]\n---\nSelf [[Old Name#Top]]\n"},
-            {"Index.md", LINKS},
-            {"People/Sibling.md", "See [x](Old%20Name.md) and [[Old Name]]"},
-            {"People/Old Name Two.md", ""}
-        });
+        TestVault vault({{"People/Old Name.md", "---\ntags: [person]\n---\nSelf [[Old Name#Top]]\n"},
+                         {"Index.md", LINKS},
+                         {"People/Sibling.md", "See [x](Old%20Name.md) and [[Old Name]]"},
+                         {"People/Old Name Two.md", ""}});
 
         RenameOutput out = rename_note(RenameInput{.from = "Old Name", .to = "New Name"});
         CHECK(out.from.get() == "People/Old Name.md");
@@ -504,12 +498,10 @@ TEST_SUITE("rename command") {
     }
 
     TEST_CASE("moves to another folder and keeps links unique by path when needed") {
-        TestVault vault({
-            {"Inbox/Note.md", "[rel](../Places/Spot.md)"},
-            {"Places/Spot.md", ""},
-            {"Archive/Note.md", ""},
-            {"Index.md", "[[Inbox/Note]] [m](Inbox/Note.md)"}
-        });
+        TestVault vault({{"Inbox/Note.md", "[rel](../Places/Spot.md)"},
+                         {"Places/Spot.md", ""},
+                         {"Archive/Note.md", ""},
+                         {"Index.md", "[[Inbox/Note]] [m](Inbox/Note.md)"}});
 
         RenameOutput out = rename_note(RenameInput{.from = "Inbox/Note.md", .to = "People/Note"});
         CHECK(out.to.get() == "People/Note.md");
@@ -518,12 +510,10 @@ TEST_SUITE("rename command") {
     }
 
     TEST_CASE("leaves links to a same-named note in another folder alone") {
-        TestVault vault({
-            {"A/Same.md", ""},
-            {"B/Same.md", ""},
-            {"A/Index.md", "[[Same]]"},
-            {"B/Index.md", "[[Same]]"}
-        });
+        TestVault vault({{"A/Same.md", ""},
+                         {"B/Same.md", ""},
+                         {"A/Index.md", "[[Same]]"},
+                         {"B/Index.md", "[[Same]]"}});
 
         rename_note(RenameInput{.from = "A/Same.md", .to = "Renamed"});
         CHECK(vault.read("A/Index.md") == "[[Renamed]]");
@@ -535,17 +525,14 @@ TEST_SUITE("rename command") {
         RenameOutput out = rename_note(RenameInput{
             .aliases = std::vector<std::string>{"Alice", "Ali", "Asmith", "A"},
             .from = "Ali",
-            .to = "Alice Smith"
-        });
+            .to = "Alice Smith"});
         CHECK(out.aliasesAdded.get() == std::vector<std::string>{"Asmith"});
         CHECK(vault.read("Alice Smith.md") == "---\naliases: [\"A\", \"Asmith\"]\ntags: [person]\n---\nbody");
     }
 
     TEST_CASE("adds aliases to block lists and notes without front matter; keepOldTitle keeps the old title") {
-        TestVault vault({
-            {"A.md", "---\naliases:\n  - One\nx: 1\n---\n"},
-            {"B.md", "plain"}
-        });
+        TestVault vault({{"A.md", "---\naliases:\n  - One\nx: 1\n---\n"},
+                         {"B.md", "plain"}});
 
         rename_note(RenameInput{.aliases = std::vector<std::string>{"Two"}, .from = "A", .to = "A2"});
         CHECK(vault.read("A2.md") == "---\naliases: [\"One\", \"Two\"]\nx: 1\n---\n");
@@ -616,10 +603,8 @@ TEST_SUITE("app / mcp") {
     }
 
     TEST_CASE("standard private conventions use XDG then HOME configuration") {
-        TestVault vault({
-            {".config/obsidian/conventions.md", "# Home conventions\n"},
-            {"xdg/obsidian/conventions.md", "# XDG conventions\n"}
-        });
+        TestVault vault({{".config/obsidian/conventions.md", "# Home conventions\n"},
+                         {"xdg/obsidian/conventions.md", "# XDG conventions\n"}});
         TestEnv home("HOME", vault.root.c_str());
         TestEnv configured("OBSIDIAN_CONVENTIONS_FILE", "");
         TestEnv xdg("XDG_CONFIG_HOME", "");
@@ -637,7 +622,7 @@ TEST_SUITE("app / mcp") {
         CHECK(app.instructions.find("obsidian://conventions") != std::string::npos);
 
         bool foundResource = false;
-        for (const auto& r : app.resources) {
+        for (const auto &r : app.resources) {
             if (r.uri == "obsidian://conventions") {
                 foundResource = true;
                 std::string loaded = r.load ? r.load() : "";
@@ -685,7 +670,8 @@ TEST_SUITE("app / mcp") {
         Json listResp = app.dispatchMcpJson(make_req(3, "tools/list"));
         auto tools = listResp["result"]["tools"].get<Json::array_t>();
         std::vector<std::string> toolNames;
-        for (const auto& t : tools) toolNames.push_back(t["name"].get<std::string>());
+        for (const auto &t : tools)
+            toolNames.push_back(t["name"].get<std::string>());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "read") != toolNames.end());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "write") != toolNames.end());
         CHECK(std::find(toolNames.begin(), toolNames.end(), "append") != toolNames.end());
@@ -718,19 +704,21 @@ TEST_SUITE("app / mcp") {
             int fd{-1};
             TcpFd() = default;
             explicit TcpFd(int f) : fd(f) {}
-            TcpFd(const TcpFd&) = delete;
-            TcpFd& operator=(const TcpFd&) = delete;
+            TcpFd(const TcpFd &) = delete;
+            TcpFd &operator=(const TcpFd &) = delete;
             ~TcpFd() {
-                if (fd >= 0) ::close(fd);
+                if (fd >= 0)
+                    ::close(fd);
             }
         };
 
         auto http_post = [](uint16_t port,
                             std::string_view method,
                             std::string_view mcpName,
-                            const Json& body) -> std::pair<int, std::string> {
+                            const Json &body) -> std::pair<int, std::string> {
             int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-            if (fd < 0) return {0, ""};
+            if (fd < 0)
+                return {0, ""};
             TcpFd sock(fd);
             struct timeval tv{};
             tv.tv_sec = 5;
@@ -741,7 +729,7 @@ TEST_SUITE("app / mcp") {
             addr.sin_family = AF_INET;
             addr.sin_port = htons(port);
             ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
-            if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0) {
+            if (::connect(fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)) != 0) {
                 return {0, ""};
             }
 
@@ -757,23 +745,27 @@ TEST_SUITE("app / mcp") {
             if (!mcpName.empty()) {
                 os << "Mcp-Name: " << mcpName << "\r\n";
             }
-            os << "Content-Length: " << bodyStr.size() << "\r\n\r\n" << bodyStr;
+            os << "Content-Length: " << bodyStr.size() << "\r\n\r\n"
+               << bodyStr;
             std::string rawReq = os.str();
             size_t sent = 0;
             while (sent < rawReq.size()) {
                 ssize_t n = ::send(fd, rawReq.data() + sent, rawReq.size() - sent, 0);
-                if (n <= 0) return {0, ""};
+                if (n <= 0)
+                    return {0, ""};
                 sent += static_cast<size_t>(n);
             }
             std::string rawResp;
             char buf[4096];
             for (;;) {
                 ssize_t n = ::recv(fd, buf, sizeof(buf), 0);
-                if (n <= 0) break;
+                if (n <= 0)
+                    break;
                 rawResp.append(buf, static_cast<size_t>(n));
             }
             auto hdrEnd = rawResp.find("\r\n\r\n");
-            if (hdrEnd == std::string::npos) return {0, ""};
+            if (hdrEnd == std::string::npos)
+                return {0, ""};
             std::string hdrs = rawResp.substr(0, hdrEnd);
             auto sp1 = hdrs.find(' ');
             int status = sp1 == std::string::npos ? 0 : std::atoi(hdrs.c_str() + sp1 + 1);
@@ -828,13 +820,13 @@ TEST_SUITE("app / mcp") {
             char a1[] = "http";
             char a2[] = "--host";
             char a3[] = "0.0.0.0";
-            char* badArgv[] = {a0, a1, a2, a3, nullptr};
+            char *badArgv[] = {a0, a1, a2, a3, nullptr};
             CHECK(app.run(4, badArgv) == 1);
 
             char s1[] = "status";
-            char* statusArgv[] = {a0, s1, nullptr};
+            char *statusArgv[] = {a0, s1, nullptr};
             std::stringstream ss;
-            auto* oldOut = std::cout.rdbuf(ss.rdbuf());
+            auto *oldOut = std::cout.rdbuf(ss.rdbuf());
             int rc = app.run(2, statusArgv);
             std::cout.rdbuf(oldOut);
             CHECK(rc == 0);
@@ -929,7 +921,8 @@ TEST_SUITE("app / mcp") {
                     }
                 });
             }
-            for (auto& th : threads) th.join();
+            for (auto &th : threads)
+                th.join();
             CHECK(failures.load() == 0);
         }
 

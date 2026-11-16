@@ -1,10 +1,10 @@
 #pragma once
 
 #include "bugsink.hpp"
+#include "glaze/yaml.hpp"
 #include "json.hpp"
 #include "mcp.hpp"
 #include "reflect.hpp"
-#include "glaze/yaml.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -21,15 +21,15 @@
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <vector>
 #include <unistd.h>
+#include <vector>
 
 namespace obsidian {
 
-using slimr::Json;
-using slimr::Field;
-using slimr::OptField;
 using slimr::Desc;
+using slimr::Field;
+using slimr::Json;
+using slimr::OptField;
 
 inline constexpr std::string_view VERSION = "2.0.0";
 inline constexpr std::string_view MCP_INSTRUCTIONS =
@@ -186,21 +186,25 @@ struct StatusOutput {
 
 inline std::string to_lower(std::string_view str) {
     std::string s(str);
-    for (char& c : s) c = std::tolower(static_cast<unsigned char>(c));
+    for (char &c : s)
+        c = std::tolower(static_cast<unsigned char>(c));
     return s;
 }
 
 inline std::string trim(std::string_view str) {
     size_t start = str.find_first_not_of(" \t\r\n");
-    if (start == std::string_view::npos) return "";
+    if (start == std::string_view::npos)
+        return "";
     size_t end = str.find_last_not_of(" \t\r\n");
     return std::string(str.substr(start, end - start + 1));
 }
 
 inline std::string posix_dirname(std::string_view p) {
     auto last_slash = p.rfind('/');
-    if (last_slash == std::string_view::npos) return ".";
-    if (last_slash == 0) return "/";
+    if (last_slash == std::string_view::npos)
+        return ".";
+    if (last_slash == 0)
+        return "/";
     return std::string(p.substr(0, last_slash));
 }
 
@@ -228,9 +232,12 @@ inline std::string uri_decode(std::string_view str) {
     for (size_t i = 0; i < str.size(); ++i) {
         if (str[i] == '%' && i + 2 < str.size()) {
             auto hex_val = [](char c) -> int {
-                if (c >= '0' && c <= '9') return c - '0';
-                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                if (c >= '0' && c <= '9')
+                    return c - '0';
+                if (c >= 'a' && c <= 'f')
+                    return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F')
+                    return c - 'A' + 10;
                 return -1;
             };
             int v1 = hex_val(str[i + 1]);
@@ -249,8 +256,10 @@ inline std::string uri_decode(std::string_view str) {
 inline std::string uri_encode(std::string_view str) {
     std::string res;
     for (char c : str) {
-        if (c == ' ') res += "%20";
-        else res.push_back(c);
+        if (c == ' ')
+            res += "%20";
+        else
+            res.push_back(c);
     }
     return res;
 }
@@ -276,7 +285,8 @@ inline std::string words_only(std::string_view text) {
             in_space = false;
         }
     }
-    if (!out.empty() && out.back() == ' ') out.pop_back();
+    if (!out.empty() && out.back() == ' ')
+        out.pop_back();
     return out;
 }
 
@@ -290,11 +300,12 @@ inline std::string link_text(std::string_view value) {
     return v;
 }
 
-inline std::vector<std::string> string_list(const Json& value) {
+inline std::vector<std::string> string_list(const Json &value) {
     std::vector<std::string> res;
-    if (value.is_null()) return res;
+    if (value.is_null())
+        return res;
     if (value.is_array()) {
-        for (const auto& item : value.get<Json::array_t>()) {
+        for (const auto &item : value.get<Json::array_t>()) {
             if (item.is_string()) {
                 res.push_back(trim(item.get<std::string>()));
             } else if (item.is_number()) {
@@ -315,18 +326,18 @@ inline std::vector<std::string> string_list(const Json& value) {
 
 // --- Vault Path & Mutation Helpers ---
 
-inline std::shared_mutex& vault_mutex() {
+inline std::shared_mutex &vault_mutex() {
     static std::shared_mutex m;
     return m;
 }
 
 inline std::string vault_root() {
-    const char* env = std::getenv("OBSIDIAN_VAULT");
+    const char *env = std::getenv("OBSIDIAN_VAULT");
     std::string res;
     if (env && *env != '\0') {
         res = std::filesystem::path(env).lexically_normal().string();
     } else {
-        const char* home = std::getenv("HOME");
+        const char *home = std::getenv("HOME");
         if (!home || !*home) {
             throw std::runtime_error("HOME is required when OBSIDIAN_VAULT is not configured");
         }
@@ -340,12 +351,12 @@ inline std::string vault_root() {
 
 inline std::string load_conventions() {
     std::filesystem::path path;
-    const char* configured = std::getenv("OBSIDIAN_CONVENTIONS_FILE");
+    const char *configured = std::getenv("OBSIDIAN_CONVENTIONS_FILE");
     if (configured && *configured) {
         path = configured;
     } else {
-        const char* xdg = std::getenv("XDG_CONFIG_HOME");
-        const char* home = std::getenv("HOME");
+        const char *xdg = std::getenv("XDG_CONFIG_HOME");
+        const char *home = std::getenv("HOME");
         if (xdg && *xdg) {
             path = std::filesystem::path(xdg) / "obsidian" / "conventions.md";
         } else if (home && *home) {
@@ -355,18 +366,22 @@ inline std::string load_conventions() {
         }
         std::error_code ec;
         const bool exists = std::filesystem::exists(path, ec);
-        if (ec) throw std::runtime_error("Cannot inspect private Obsidian conventions file");
-        if (!exists) return std::string(CONVENTIONS_MD_EMBEDDED);
+        if (ec)
+            throw std::runtime_error("Cannot inspect private Obsidian conventions file");
+        if (!exists)
+            return std::string(CONVENTIONS_MD_EMBEDDED);
     }
     std::error_code ec;
     if (!std::filesystem::is_regular_file(path, ec) || ec) {
         throw std::runtime_error("Obsidian conventions file is missing or not a regular file");
     }
     std::ifstream file(path, std::ios::binary);
-    if (!file) throw std::runtime_error("Cannot open Obsidian conventions file");
+    if (!file)
+        throw std::runtime_error("Cannot open Obsidian conventions file");
     std::ostringstream content;
     content << file.rdbuf();
-    if (file.bad() || content.bad()) throw std::runtime_error("Cannot read Obsidian conventions file");
+    if (file.bad() || content.bad())
+        throw std::runtime_error("Cannot read Obsidian conventions file");
     return content.str();
 }
 
@@ -374,11 +389,14 @@ inline std::string rel_normalize(std::string_view rel) {
     std::string raw(rel);
     size_t start = raw.find_first_not_of(" \t\r\n");
     size_t end = raw.find_last_not_of(" \t\r\n");
-    if (start == std::string::npos) raw = "";
-    else raw = raw.substr(start, end - start + 1);
+    if (start == std::string::npos)
+        raw = "";
+    else
+        raw = raw.substr(start, end - start + 1);
 
-    for (char& c : raw) {
-        if (c == '\\') c = '/';
+    for (char &c : raw) {
+        if (c == '\\')
+            c = '/';
     }
 
     if (raw.starts_with('/') || raw.starts_with('~') ||
@@ -390,7 +408,8 @@ inline std::string rel_normalize(std::string_view rel) {
     std::stringstream ss(raw.empty() ? "." : raw);
     std::string seg;
     while (std::getline(ss, seg, '/')) {
-        if (seg.empty() || seg == ".") continue;
+        if (seg.empty() || seg == ".")
+            continue;
         if (seg == "..") {
             if (!parts.empty() && parts.back() != "..") {
                 parts.pop_back();
@@ -407,7 +426,8 @@ inline std::string rel_normalize(std::string_view rel) {
         norm = ".";
     } else {
         for (size_t i = 0; i < parts.size(); ++i) {
-            if (i > 0) norm += "/";
+            if (i > 0)
+                norm += "/";
             norm += parts[i];
         }
     }
@@ -416,7 +436,7 @@ inline std::string rel_normalize(std::string_view rel) {
         throw std::runtime_error("Path \"" + std::string(rel) + "\" resolves outside the vault.");
     }
 
-    for (const auto& p : parts) {
+    for (const auto &p : parts) {
         if (p.starts_with('.') && p != ".") {
             throw std::runtime_error("Path \"" + std::string(rel) + "\" is in a hidden folder (e.g. .obsidian), which this tool doesn't touch.");
         }
@@ -441,9 +461,11 @@ inline std::string vault_path(std::string_view rel) {
     }
     std::error_code ec;
     std::filesystem::path realRoot = std::filesystem::canonical(root, ec);
-    if (ec) realRoot = root;
+    if (ec)
+        realRoot = root;
     std::filesystem::path real = std::filesystem::canonical(existing, ec);
-    if (ec) real = existing;
+    if (ec)
+        real = existing;
 
     std::string realRootStr = realRoot.lexically_normal().string();
     std::string realStr = real.lexically_normal().string();
@@ -461,7 +483,8 @@ inline std::string vault_path_mutable(std::string_view rel) {
     std::stringstream ss(norm);
     std::string part;
     while (std::getline(ss, part, '/')) {
-        if (part.empty() || part == ".") continue;
+        if (part.empty() || part == ".")
+            continue;
         current /= part;
         std::error_code ec;
         auto status = std::filesystem::symlink_status(current, ec);
@@ -510,7 +533,7 @@ inline void vault_write(std::string_view rel, std::string_view content) {
 
 // --- Front Matter & Note Loading ---
 
-inline FrontMatterResult front_matter_parse(const std::string& content) {
+inline FrontMatterResult front_matter_parse(const std::string &content) {
     std::regex re(R"(^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$))");
     std::smatch m;
     if (!std::regex_search(content, m, re)) {
@@ -522,7 +545,8 @@ inline FrontMatterResult front_matter_parse(const std::string& content) {
 
     int newlines = 0;
     for (char c : match0) {
-        if (c == '\n') newlines++;
+        if (c == '\n')
+            newlines++;
     }
     int bodyLine = 1 + newlines;
 
@@ -553,8 +577,10 @@ inline Note note_load(std::string_view rel) {
 
     auto parts = front_matter_parse(content);
     Json aliasesVal;
-    if (parts.frontMatter.contains("aliases")) aliasesVal = parts.frontMatter["aliases"];
-    else if (parts.frontMatter.contains("alias")) aliasesVal = parts.frontMatter["alias"];
+    if (parts.frontMatter.contains("aliases"))
+        aliasesVal = parts.frontMatter["aliases"];
+    else if (parts.frontMatter.contains("alias"))
+        aliasesVal = parts.frontMatter["alias"];
 
     return Note{
         .aliases = string_list(aliasesVal),
@@ -564,26 +590,28 @@ inline Note note_load(std::string_view rel) {
         .frontMatter = parts.frontMatter,
         .frontMatterError = parts.frontMatterError,
         .path = std::string(rel),
-        .title = posix_basename(rel, ".md")
-    };
+        .title = posix_basename(rel, ".md")};
 }
 
 inline std::vector<std::string> note_paths(std::string_view folder = "", bool recursive = true) {
     std::vector<std::string> found;
     std::string root = vault_root();
 
-    auto walk = [&](auto& self, const std::string& rel) -> void {
+    auto walk = [&](auto &self, const std::string &rel) -> void {
         std::string abs = vault_path(rel);
         std::error_code ec;
-        if (!std::filesystem::exists(abs, ec)) return;
+        if (!std::filesystem::exists(abs, ec))
+            return;
 
-        for (const auto& entry : std::filesystem::directory_iterator(abs, ec)) {
+        for (const auto &entry : std::filesystem::directory_iterator(abs, ec)) {
             std::string name = entry.path().filename().string();
-            if (name.starts_with('.')) continue;
+            if (name.starts_with('.'))
+                continue;
 
             std::string child = rel.empty() ? name : (rel + "/" + name);
             if (entry.is_directory(ec)) {
-                if (recursive) self(self, child);
+                if (recursive)
+                    self(self, child);
             } else if (name.ends_with(".md")) {
                 found.push_back(child);
             }
@@ -595,20 +623,22 @@ inline std::vector<std::string> note_paths(std::string_view folder = "", bool re
     return found;
 }
 
-inline std::optional<std::string> only_one(const std::vector<std::string>& matches, std::string_view ref) {
+inline std::optional<std::string> only_one(const std::vector<std::string> &matches, std::string_view ref) {
     if (matches.size() > 1) {
         std::string list;
         for (size_t i = 0; i < matches.size(); ++i) {
-            if (i > 0) list += ", ";
+            if (i > 0)
+                list += ", ";
             list += matches[i];
         }
         throw std::runtime_error("\"" + std::string(ref) + "\" matches " + std::to_string(matches.size()) + " notes: " + list + ". Pass the vault-relative path.");
     }
-    if (matches.size() == 1) return matches[0];
+    if (matches.size() == 1)
+        return matches[0];
     return std::nullopt;
 }
 
-inline std::string note_resolve(std::string_view ref, const std::vector<std::string>& paths_arg = {}) {
+inline std::string note_resolve(std::string_view ref, const std::vector<std::string> &paths_arg = {}) {
     std::string wanted = trim(ref);
     if (wanted.starts_with("[[") && wanted.ends_with("]]") && wanted.length() >= 4) {
         wanted = wanted.substr(2, wanted.length() - 4);
@@ -622,47 +652,53 @@ inline std::string note_resolve(std::string_view ref, const std::vector<std::str
     std::string rel = rel_normalize(wanted.ends_with(".md") ? wanted : (wanted + ".md"));
 
     // 1. Exact path
-    for (const auto& p : paths) {
-        if (p == rel) return p;
+    for (const auto &p : paths) {
+        if (p == rel)
+            return p;
     }
 
     // 1b. Case-insensitive exact path
     std::string rel_lower = to_lower(rel);
     std::vector<std::string> case_matches;
-    for (const auto& p : paths) {
-        if (to_lower(p) == rel_lower) case_matches.push_back(p);
+    for (const auto &p : paths) {
+        if (to_lower(p) == rel_lower)
+            case_matches.push_back(p);
     }
     auto exact_case = only_one(case_matches, ref);
-    if (exact_case) return *exact_case;
+    if (exact_case)
+        return *exact_case;
 
     // 2. By file name (path suffix)
     std::string name_lower = rel_lower;
     std::vector<std::string> by_name;
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         std::string p_low = to_lower(p);
         if (p_low == name_lower || p_low.ends_with("/" + name_lower)) {
             by_name.push_back(p);
         }
     }
     auto named = only_one(by_name, ref);
-    if (named) return *named;
+    if (named)
+        return *named;
 
     // 3. By alias
     std::string alias_lower = to_lower(wanted);
     std::vector<std::string> by_alias;
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         auto note = note_load(p);
         bool match = false;
-        for (const auto& a : note.aliases) {
+        for (const auto &a : note.aliases) {
             if (to_lower(a) == alias_lower) {
                 match = true;
                 break;
             }
         }
-        if (match) by_alias.push_back(p);
+        if (match)
+            by_alias.push_back(p);
     }
     auto aliased = only_one(by_alias, ref);
-    if (aliased) return *aliased;
+    if (aliased)
+        return *aliased;
 
     throw std::runtime_error("No note matches \"" + std::string(ref) + "\" by path, file name or alias. Use search to find it.");
 }
@@ -674,41 +710,47 @@ struct RewriteResult {
     std::string text;
 };
 
-inline std::optional<std::string> wikilink_resolve(std::string_view target, std::string_view from, const std::vector<std::string>& paths) {
+inline std::optional<std::string> wikilink_resolve(std::string_view target, std::string_view from, const std::vector<std::string> &paths) {
     std::string clean = trim(target);
     if (clean.length() >= 3 && to_lower(clean).ends_with(".md")) {
         clean = clean.substr(0, clean.length() - 3);
     }
-    if (clean.empty()) return std::nullopt;
+    if (clean.empty())
+        return std::nullopt;
 
     std::string want = to_lower(clean) + ".md";
-    for (const auto& p : paths) {
-        if (to_lower(p) == want) return p;
+    for (const auto &p : paths) {
+        if (to_lower(p) == want)
+            return p;
     }
 
     std::vector<std::string> matches;
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         if (to_lower(p).ends_with("/" + want)) {
             matches.push_back(p);
         }
     }
 
-    if (matches.empty()) return std::nullopt;
-    if (matches.size() == 1) return matches[0];
+    if (matches.empty())
+        return std::nullopt;
+    if (matches.size() == 1)
+        return matches[0];
 
     std::string dir = posix_dirname(from);
-    for (const auto& p : matches) {
-        if (posix_dirname(p) == dir) return p;
+    for (const auto &p : matches) {
+        if (posix_dirname(p) == dir)
+            return p;
     }
 
     std::vector<std::string> sorted = matches;
-    std::sort(sorted.begin(), sorted.end(), [](const std::string& a, const std::string& b) {
-        auto count_slashes = [](const std::string& s) {
+    std::sort(sorted.begin(), sorted.end(), [](const std::string &a, const std::string &b) {
+        auto count_slashes = [](const std::string &s) {
             return std::count(s.begin(), s.end(), '/');
         };
         auto ca = count_slashes(a);
         auto cb = count_slashes(b);
-        if (ca != cb) return ca < cb;
+        if (ca != cb)
+            return ca < cb;
         return a < b;
     });
     return sorted[0];
@@ -718,16 +760,16 @@ inline RewriteResult links_rewrite(
     std::string_view from,
     std::string_view newPath,
     std::string_view oldPath,
-    const std::vector<std::string>& paths,
-    const std::vector<std::string>& pathsAfter,
-    const std::string& text
-) {
+    const std::vector<std::string> &paths,
+    const std::vector<std::string> &pathsAfter,
+    const std::string &text) {
     std::string newTitle = posix_basename(newPath, ".md");
     std::string newTitleLower = to_lower(newTitle) + ".md";
 
     size_t newTitleMatches = 0;
-    for (const auto& p : pathsAfter) {
-        if (to_lower(posix_basename(p)) == newTitleLower) newTitleMatches++;
+    for (const auto &p : pathsAfter) {
+        if (to_lower(posix_basename(p)) == newTitleLower)
+            newTitleMatches++;
     }
     bool newBareUnique = (newTitleMatches == 1);
     std::string fromAfter = (from == oldPath) ? std::string(newPath) : std::string(from);
@@ -806,7 +848,8 @@ inline RewriteResult links_rewrite(
             }
 
             std::string rootedRaw = decoded;
-            while (rootedRaw.starts_with('/')) rootedRaw.erase(0, 1);
+            while (rootedRaw.starts_with('/'))
+                rootedRaw.erase(0, 1);
             std::string rooted;
             try {
                 rooted = rel_normalize(rootedRaw);
@@ -827,8 +870,11 @@ inline RewriteResult links_rewrite(
             } else if (from == oldPath && fromDir != afterDir && !decoded.starts_with('/')) {
                 bool inPaths = false;
                 std::string relLower = to_lower(relative);
-                for (const auto& p : paths) {
-                    if (to_lower(p) == relLower) { inPaths = true; break; }
+                for (const auto &p : paths) {
+                    if (to_lower(p) == relLower) {
+                        inPaths = true;
+                        break;
+                    }
                 }
                 if (!relative.starts_with("../") && inPaths) {
                     dest = relative;
@@ -840,7 +886,8 @@ inline RewriteResult links_rewrite(
                 resultText.append(whole);
             } else {
                 std::string written = (style == "relative") ? posix_relative(afterDir, *dest) : *dest;
-                if (decoded.starts_with('/')) written = "/" + written;
+                if (decoded.starts_with('/'))
+                    written = "/" + written;
 
                 bool needsEncode = !isBracketed && (target.find('%') != std::string::npos || written.find(' ') != std::string::npos);
                 std::string encoded = needsEncode ? uri_encode(written) : written;
@@ -859,14 +906,16 @@ inline RewriteResult links_rewrite(
     return RewriteResult{.count = count, .text = resultText};
 }
 
-inline std::string aliases_add(const std::string& text, const std::vector<std::string>& add, const std::vector<std::string>& have) {
-    auto block = [](const std::vector<std::string>& list) -> std::string {
+inline std::string aliases_add(const std::string &text, const std::vector<std::string> &add, const std::vector<std::string> &have) {
+    auto block = [](const std::vector<std::string> &list) -> std::string {
         std::string s = "aliases: [";
         for (size_t i = 0; i < list.size(); ++i) {
-            if (i > 0) s += ", ";
+            if (i > 0)
+                s += ", ";
             s += "\"";
             for (char c : list[i]) {
-                if (c == '"' || c == '\\') s += '\\';
+                if (c == '"' || c == '\\')
+                    s += '\\';
                 s += c;
             }
             s += "\"";
@@ -883,7 +932,7 @@ inline std::string aliases_add(const std::string& text, const std::vector<std::s
 
     std::string inner = fm[1].str();
     std::vector<std::string> merged = have;
-    for (const auto& a : add) {
+    for (const auto &a : add) {
         if (std::find(merged.begin(), merged.end(), a) == merged.end()) {
             merged.push_back(a);
         }
@@ -906,7 +955,7 @@ inline std::string aliases_add(const std::string& text, const std::vector<std::s
 
 // --- In-Process Public C++ Command Handlers ---
 
-inline ReadOutput read_note(const ReadInput& input) {
+inline ReadOutput read_note(const ReadInput &input) {
     std::shared_lock<std::shared_mutex> lock(vault_mutex());
     Note note = note_load(note_resolve(input.note.get()));
     return ReadOutput{
@@ -914,15 +963,14 @@ inline ReadOutput read_note(const ReadInput& input) {
         .frontMatter = note.frontMatter,
         .frontMatterError = note.frontMatterError,
         .path = note.path,
-        .title = note.title
-    };
+        .title = note.title};
 }
 
 inline ReadOutput read_note(std::string_view note_ref) {
     return read_note(ReadInput{.note = std::string(note_ref)});
 }
 
-inline WriteOutput write_note(const WriteInput& input) {
+inline WriteOutput write_note(const WriteInput &input) {
     std::unique_lock<std::shared_mutex> lock(vault_mutex());
     std::string path_str = input.path.get();
     std::string rel = rel_normalize(path_str.ends_with(".md") ? path_str : (path_str + ".md"));
@@ -930,7 +978,7 @@ inline WriteOutput write_note(const WriteInput& input) {
     auto paths = note_paths();
     std::string rel_lower = to_lower(rel);
     std::optional<std::string> clash;
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         if (to_lower(p) == rel_lower) {
             clash = p;
             break;
@@ -948,23 +996,22 @@ inline WriteOutput write_note(const WriteInput& input) {
     return WriteOutput{
         .bytes = static_cast<int>(input.content.get().size()),
         .created = !exists,
-        .path = target
-    };
+        .path = target};
 }
 
 inline WriteOutput write_note(std::string_view path, std::string_view content, bool overwrite = false) {
     return write_note(WriteInput{
         .content = std::string(content),
         .overwrite = overwrite,
-        .path = std::string(path)
-    });
+        .path = std::string(path)});
 }
 
-inline AppendOutput append_note(const AppendInput& input) {
+inline AppendOutput append_note(const AppendInput &input) {
     std::unique_lock<std::shared_mutex> lock(vault_mutex());
     Note note = note_load(note_resolve(input.note.get()));
     std::string added = input.text.get();
-    while (!added.empty() && added.back() == '\n') added.pop_back();
+    while (!added.empty() && added.back() == '\n')
+        added.pop_back();
 
     if (!input.heading.get().has_value()) {
         std::string kept = note.content;
@@ -986,14 +1033,16 @@ inline AppendOutput append_note(const AppendInput& input) {
         std::stringstream ss(note.content);
         std::string line;
         while (std::getline(ss, line)) {
-            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
             lines.push_back(line);
         }
     }
 
     std::string headingVal = *input.heading.get();
     std::string want = trim(headingVal);
-    while (want.starts_with('#')) want.erase(0, 1);
+    while (want.starts_with('#'))
+        want.erase(0, 1);
     want = to_lower(trim(want));
 
     int firstBody = note.bodyLine - 1;
@@ -1003,7 +1052,8 @@ inline AppendOutput append_note(const AppendInput& input) {
     for (size_t i = static_cast<size_t>(firstBody); i < lines.size(); ++i) {
         if (std::regex_search(lines[i], headingRe)) {
             std::string cand = lines[i];
-            while (cand.starts_with('#')) cand.erase(0, 1);
+            while (cand.starts_with('#'))
+                cand.erase(0, 1);
             if (to_lower(trim(cand)) == want) {
                 headingAt = static_cast<int>(i);
                 break;
@@ -1020,25 +1070,29 @@ inline AppendOutput append_note(const AppendInput& input) {
         }
         std::string headingsStr;
         for (size_t i = 0; i < headings.size(); ++i) {
-            if (i > 0) headingsStr += " | ";
+            if (i > 0)
+                headingsStr += " | ";
             headingsStr += headings[i];
         }
         throw std::runtime_error("No heading \"" + headingVal + "\" in " + note.path + ". Headings: " + (headingsStr.empty() ? "(none)" : headingsStr));
     }
 
     size_t level = 0;
-    while (level < lines[headingAt].size() && lines[headingAt][level] == '#') level++;
+    while (level < lines[headingAt].size() && lines[headingAt][level] == '#')
+        level++;
 
     size_t end = lines.size();
     bool fenced = false;
     std::regex fenceRe(R"(^\s*(```|~~~))");
 
     for (size_t i = static_cast<size_t>(headingAt + 1); i < lines.size(); ++i) {
-        if (std::regex_search(lines[i], fenceRe)) fenced = !fenced;
+        if (std::regex_search(lines[i], fenceRe))
+            fenced = !fenced;
         std::smatch m;
         if (!fenced && std::regex_search(lines[i], m, headingRe)) {
             size_t l = 0;
-            while (l < lines[i].size() && lines[i][l] == '#') l++;
+            while (l < lines[i].size() && lines[i][l] == '#')
+                l++;
             if (l <= level) {
                 end = i;
                 break;
@@ -1055,7 +1109,8 @@ inline AppendOutput append_note(const AppendInput& input) {
     {
         std::stringstream ss(added);
         std::string l;
-        while (std::getline(ss, l)) toInsert.push_back(l);
+        while (std::getline(ss, l))
+            toInsert.push_back(l);
     }
     lines.insert(lines.begin() + at, toInsert.begin(), toInsert.end());
 
@@ -1071,11 +1126,10 @@ inline AppendOutput append_note(std::string_view note, std::string_view text, st
     return append_note(AppendInput{
         .heading = heading ? std::make_optional(std::string(*heading)) : std::nullopt,
         .note = std::string(note),
-        .text = std::string(text)
-    });
+        .text = std::string(text)});
 }
 
-inline RenameOutput rename_note(const RenameInput& input) {
+inline RenameOutput rename_note(const RenameInput &input) {
     std::unique_lock<std::shared_mutex> lock(vault_mutex());
     auto paths = note_paths();
     std::string oldPath = note_resolve(input.from.get(), paths);
@@ -1089,8 +1143,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
     std::string newPath = rel_normalize(
         target.find('/') != std::string::npos
             ? (target + ".md")
-            : (posix_dirname(oldPath) == "." ? (target + ".md") : (posix_dirname(oldPath) + "/" + target + ".md"))
-    );
+            : (posix_dirname(oldPath) == "." ? (target + ".md") : (posix_dirname(oldPath) + "/" + target + ".md")));
     std::string newTitle = posix_basename(newPath, ".md");
 
     std::regex badTitleRe(R"([#|^\[\]+:])");
@@ -1102,7 +1155,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
     }
 
     std::string newPathLower = to_lower(newPath);
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         if (p != oldPath && to_lower(p) == newPathLower) {
             throw std::runtime_error("\"" + p + "\" already exists; rename never overwrites a note.");
         }
@@ -1112,8 +1165,9 @@ inline RenameOutput rename_note(const RenameInput& input) {
     vault_path_mutable(newPath);
 
     std::vector<std::string> pathsAfter = paths;
-    for (auto& p : pathsAfter) {
-        if (p == oldPath) p = newPath;
+    for (auto &p : pathsAfter) {
+        if (p == oldPath)
+            p = newPath;
     }
 
     struct NoteChange {
@@ -1123,7 +1177,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
     };
     std::vector<NoteChange> changes;
 
-    for (const auto& p : paths) {
+    for (const auto &p : paths) {
         std::string abs = vault_path(p);
         std::ifstream in(abs, std::ios::binary);
         std::ostringstream ss;
@@ -1138,7 +1192,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
 
     std::string renamedText;
     bool foundInChanges = false;
-    for (const auto& c : changes) {
+    for (const auto &c : changes) {
         if (c.path == oldPath) {
             renamedText = c.text;
             foundInChanges = true;
@@ -1155,16 +1209,19 @@ inline RenameOutput rename_note(const RenameInput& input) {
 
     auto fmParts = front_matter_parse(renamedText);
     Json aliasesVal;
-    if (fmParts.frontMatter.contains("aliases")) aliasesVal = fmParts.frontMatter["aliases"];
-    else if (fmParts.frontMatter.contains("alias")) aliasesVal = fmParts.frontMatter["alias"];
+    if (fmParts.frontMatter.contains("aliases"))
+        aliasesVal = fmParts.frontMatter["aliases"];
+    else if (fmParts.frontMatter.contains("alias"))
+        aliasesVal = fmParts.frontMatter["alias"];
 
     std::vector<std::string> presentList = string_list(aliasesVal);
     std::vector<std::string> presentLower;
-    for (const auto& a : presentList) presentLower.push_back(to_lower(a));
+    for (const auto &a : presentList)
+        presentLower.push_back(to_lower(a));
 
     std::string titleWords = " " + words_only(newTitle) + " ";
     std::vector<std::string> extra;
-    for (const auto& a : input.aliases.get()) {
+    for (const auto &a : input.aliases.get()) {
         std::string trimmed = trim(a);
         if (!trimmed.empty() && trimmed != oldTitle) {
             std::string wordCheck = " " + words_only(trimmed) + " ";
@@ -1175,11 +1232,13 @@ inline RenameOutput rename_note(const RenameInput& input) {
     }
 
     std::vector<std::string> wanted;
-    if (input.keepOldTitle.get()) wanted.push_back(oldTitle);
-    for (const auto& ex : extra) wanted.push_back(ex);
+    if (input.keepOldTitle.get())
+        wanted.push_back(oldTitle);
+    for (const auto &ex : extra)
+        wanted.push_back(ex);
 
     std::vector<std::string> aliasesAdded;
-    for (const auto& a : wanted) {
+    for (const auto &a : wanted) {
         if (std::find(aliasesAdded.begin(), aliasesAdded.end(), a) == aliasesAdded.end()) {
             if (std::find(presentLower.begin(), presentLower.end(), to_lower(a)) == presentLower.end()) {
                 aliasesAdded.push_back(a);
@@ -1188,7 +1247,7 @@ inline RenameOutput rename_note(const RenameInput& input) {
     }
 
     if (!input.dryRun.get()) {
-        for (const auto& change : changes) {
+        for (const auto &change : changes) {
             vault_write(change.path, change.text);
         }
         std::string src = vault_path_mutable(oldPath);
@@ -1213,12 +1272,11 @@ inline RenameOutput rename_note(const RenameInput& input) {
 
     int totalLinks = 0;
     std::vector<RenameNoteChange> noteResults;
-    for (const auto& c : changes) {
+    for (const auto &c : changes) {
         totalLinks += c.count;
         noteResults.push_back(RenameNoteChange{
             .links = c.count,
-            .path = (c.path == oldPath) ? newPath : c.path
-        });
+            .path = (c.path == oldPath) ? newPath : c.path});
     }
 
     return RenameOutput{
@@ -1227,11 +1285,10 @@ inline RenameOutput rename_note(const RenameInput& input) {
         .from = oldPath,
         .links = totalLinks,
         .notes = noteResults,
-        .to = newPath
-    };
+        .to = newPath};
 }
 
-inline ListOutput list_notes(const ListInput& input) {
+inline ListOutput list_notes(const ListInput &input) {
     std::shared_lock<std::shared_mutex> lock(vault_mutex());
     std::string rel = folder_normalize(input.folder.get());
     std::string abs = vault_path(rel);
@@ -1242,7 +1299,7 @@ inline ListOutput list_notes(const ListInput& input) {
     }
 
     std::vector<std::string> folders;
-    for (const auto& entry : std::filesystem::directory_iterator(abs, ec)) {
+    for (const auto &entry : std::filesystem::directory_iterator(abs, ec)) {
         if (entry.is_directory(ec)) {
             std::string name = entry.path().filename().string();
             if (!name.starts_with('.')) {
@@ -1253,19 +1310,18 @@ inline ListOutput list_notes(const ListInput& input) {
     std::sort(folders.begin(), folders.end());
 
     std::vector<ListNoteItem> notes;
-    for (const auto& p : note_paths(rel, input.recursive.get())) {
+    for (const auto &p : note_paths(rel, input.recursive.get())) {
         Note note = note_load(p);
         std::vector<std::string> keys;
         if (note.frontMatter.is_object()) {
-            for (const auto& [k, v] : note.frontMatter.get<Json::object_t>()) {
+            for (const auto &[k, v] : note.frontMatter.get<Json::object_t>()) {
                 keys.push_back(k);
             }
         }
         notes.push_back(ListNoteItem{
             .frontMatterKeys = keys,
             .path = p,
-            .title = note.title
-        });
+            .title = note.title});
     }
 
     return ListOutput{.folders = folders, .notes = notes};
@@ -1275,7 +1331,7 @@ inline ListOutput list_notes(std::string_view folder = "", bool recursive = fals
     return list_notes(ListInput{.folder = std::string(folder), .recursive = recursive});
 }
 
-inline SearchOutput search_notes(const SearchInput& input) {
+inline SearchOutput search_notes(const SearchInput &input) {
     std::shared_lock<std::shared_mutex> lock(vault_mutex());
     auto query_terms = [](std::string_view query) -> std::vector<std::string> {
         std::vector<std::string> terms;
@@ -1287,25 +1343,30 @@ inline SearchOutput search_notes(const SearchInput& input) {
             std::smatch m = *i;
             std::string term = m[1].matched ? m[1].str() : m[2].str();
             std::string t = trim(term);
-            for (char& c : t) c = std::tolower(static_cast<unsigned char>(c));
-            if (!t.empty()) terms.push_back(t);
+            for (char &c : t)
+                c = std::tolower(static_cast<unsigned char>(c));
+            if (!t.empty())
+                terms.push_back(t);
         }
         return terms;
     };
 
-    auto note_tags = [](const Note& note) -> std::vector<std::string> {
+    auto note_tags = [](const Note &note) -> std::vector<std::string> {
         std::vector<std::string> tags;
         Json tagsVal;
-        if (note.frontMatter.contains("tags")) tagsVal = note.frontMatter["tags"];
-        else if (note.frontMatter.contains("tag")) tagsVal = note.frontMatter["tag"];
+        if (note.frontMatter.contains("tags"))
+            tagsVal = note.frontMatter["tags"];
+        else if (note.frontMatter.contains("tag"))
+            tagsVal = note.frontMatter["tag"];
 
-        for (const auto& item : string_list(tagsVal)) {
+        for (const auto &item : string_list(tagsVal)) {
             std::regex sep(R"([\s,]+)");
             std::sregex_token_iterator it(item.begin(), item.end(), sep, -1);
             std::sregex_token_iterator end;
             for (; it != end; ++it) {
                 std::string t = *it;
-                if (!t.empty()) tags.push_back(t);
+                if (!t.empty())
+                    tags.push_back(t);
             }
         }
 
@@ -1317,9 +1378,12 @@ inline SearchOutput search_notes(const SearchInput& input) {
         std::regex allDigits(R"(^\d+$)");
 
         while (std::getline(stream, line)) {
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            if (std::regex_search(line, fenceRe)) fenced = !fenced;
-            if (fenced) continue;
+            if (!line.empty() && line.back() == '\r')
+                line.pop_back();
+            if (std::regex_search(line, fenceRe))
+                fenced = !fenced;
+            if (fenced)
+                continue;
 
             auto t_begin = std::sregex_iterator(line.begin(), line.end(), tagRe);
             auto t_end = std::sregex_iterator();
@@ -1332,44 +1396,53 @@ inline SearchOutput search_notes(const SearchInput& input) {
         }
 
         std::vector<std::string> clean;
-        for (auto& t : tags) {
-            if (t.starts_with('#')) t = t.substr(1);
+        for (auto &t : tags) {
+            if (t.starts_with('#'))
+                t = t.substr(1);
             std::string low = to_lower(t);
-            if (!low.empty()) clean.push_back(low);
+            if (!low.empty())
+                clean.push_back(low);
         }
         return clean;
     };
 
-    auto front_matter_matches = [](const Note& note, std::string_view key, std::string_view value) -> bool {
-        if (!note.frontMatter.is_object()) return false;
+    auto front_matter_matches = [](const Note &note, std::string_view key, std::string_view value) -> bool {
+        if (!note.frontMatter.is_object())
+            return false;
         std::string keyLower = to_lower(key);
         std::optional<Json> valFound;
-        for (const auto& [k, v] : note.frontMatter.get<Json::object_t>()) {
+        for (const auto &[k, v] : note.frontMatter.get<Json::object_t>()) {
             if (to_lower(k) == keyLower) {
                 valFound = v;
                 break;
             }
         }
-        if (!valFound.has_value()) return false;
+        if (!valFound.has_value())
+            return false;
         std::string want = to_lower(link_text(value));
-        for (const auto& item : string_list(*valFound)) {
-            if (to_lower(link_text(item)) == want) return true;
+        for (const auto &item : string_list(*valFound)) {
+            if (to_lower(link_text(item)) == want)
+                return true;
         }
         return false;
     };
 
-    auto note_score = [](const Note& note, const std::vector<std::string>& terms) -> std::optional<std::pair<int, std::vector<SearchSnippet>>> {
+    auto note_score = [](const Note &note, const std::vector<std::string> &terms) -> std::optional<std::pair<int, std::vector<SearchSnippet>>> {
         std::string title = to_lower(note.title);
         std::vector<std::string> aliases;
-        for (const auto& a : note.aliases) aliases.push_back(to_lower(a));
+        for (const auto &a : note.aliases)
+            aliases.push_back(to_lower(a));
         std::string body = to_lower(note.body);
 
         int score = 0;
-        for (const auto& term : terms) {
+        for (const auto &term : terms) {
             bool inTitle = (title.find(term) != std::string::npos);
             bool inAlias = false;
-            for (const auto& a : aliases) {
-                if (a.find(term) != std::string::npos) { inAlias = true; break; }
+            for (const auto &a : aliases) {
+                if (a.find(term) != std::string::npos) {
+                    inAlias = true;
+                    break;
+                }
             }
             int bodyCount = 0;
             size_t pos = 0;
@@ -1377,7 +1450,8 @@ inline SearchOutput search_notes(const SearchInput& input) {
                 bodyCount++;
                 pos += term.length();
             }
-            if (!inTitle && !inAlias && bodyCount == 0) return std::nullopt;
+            if (!inTitle && !inAlias && bodyCount == 0)
+                return std::nullopt;
             score += (inTitle ? 10 : 0) + (inAlias ? 5 : 0) + std::min(bodyCount, 10);
         }
 
@@ -1389,11 +1463,12 @@ inline SearchOutput search_notes(const SearchInput& input) {
             constexpr int SNIPPET_CHARS = 200;
 
             while (std::getline(stream, raw) && snippets.size() < 3) {
-                if (!raw.empty() && raw.back() == '\r') raw.pop_back();
+                if (!raw.empty() && raw.back() == '\r')
+                    raw.pop_back();
                 std::string lower = to_lower(raw);
 
                 size_t minAt = std::string::npos;
-                for (const auto& t : terms) {
+                for (const auto &t : terms) {
                     size_t found = lower.find(t);
                     if (found != std::string::npos && (minAt == std::string::npos || found < minAt)) {
                         minAt = found;
@@ -1416,8 +1491,7 @@ inline SearchOutput search_notes(const SearchInput& input) {
                     std::string textSnippet = (start > 0 ? "…" : "") + cut + (start + SNIPPET_CHARS < trimmedLen ? "…" : "");
                     snippets.push_back(SearchSnippet{
                         .line = note.bodyLine + lineIdx,
-                        .text = textSnippet
-                    });
+                        .text = textSnippet});
                 }
                 lineIdx++;
             }
@@ -1430,7 +1504,8 @@ inline SearchOutput search_notes(const SearchInput& input) {
     std::optional<std::string> wantTag;
     if (input.tag.get().has_value()) {
         std::string t = *input.tag.get();
-        if (t.starts_with('#')) t = t.substr(1);
+        if (t.starts_with('#'))
+            t = t.substr(1);
         wantTag = to_lower(t);
     }
 
@@ -1439,29 +1514,31 @@ inline SearchOutput search_notes(const SearchInput& input) {
     auto paths = note_paths(folderNorm);
 
     std::vector<SearchHit> hits;
-    for (const auto& rel : paths) {
+    for (const auto &rel : paths) {
         Note note = note_load(rel);
         if (wantTag.has_value()) {
             auto tags = note_tags(note);
             bool tagMatch = false;
-            for (const auto& t : tags) {
+            for (const auto &t : tags) {
                 if (t == *wantTag || t.starts_with(*wantTag + "/")) {
                     tagMatch = true;
                     break;
                 }
             }
-            if (!tagMatch) continue;
+            if (!tagMatch)
+                continue;
         }
 
         if (input.frontMatter.get().has_value()) {
             bool allMatch = true;
-            for (const auto& [k, v] : *input.frontMatter.get()) {
+            for (const auto &[k, v] : *input.frontMatter.get()) {
                 if (!front_matter_matches(note, k, v)) {
                     allMatch = false;
                     break;
                 }
             }
-            if (!allMatch) continue;
+            if (!allMatch)
+                continue;
         }
 
         auto scored = note_score(note, terms);
@@ -1470,13 +1547,13 @@ inline SearchOutput search_notes(const SearchInput& input) {
                 .path = rel,
                 .score = scored->first,
                 .snippets = scored->second,
-                .title = note.title
-            });
+                .title = note.title});
         }
     }
 
-    std::sort(hits.begin(), hits.end(), [](const SearchHit& a, const SearchHit& b) {
-        if (a.score.get() != b.score.get()) return a.score.get() > b.score.get();
+    std::sort(hits.begin(), hits.end(), [](const SearchHit &a, const SearchHit &b) {
+        if (a.score.get() != b.score.get())
+            return a.score.get() > b.score.get();
         return a.path.get() < b.path.get();
     });
 
@@ -1488,7 +1565,7 @@ inline SearchOutput search_notes(const SearchInput& input) {
     return SearchOutput{.results = hits, .total = total};
 }
 
-inline StatusOutput status(const StatusInput& = {}) {
+inline StatusOutput status(const StatusInput & = {}) {
     return StatusOutput{.version = std::string(VERSION)};
 }
 
@@ -1506,58 +1583,50 @@ inline slimr::PluginApp make_obsidian_app() {
         .name = "conventions",
         .description = "Note conventions: person notes, titles, aliases, front matter, where things go, what to keep out. Read before creating, editing or renaming notes.",
         .mimeType = "text/markdown",
-        .load = []() { return load_conventions(); }
-    });
+        .load = []() { return load_conventions(); }});
 
     // Tools registration
     app.tool<ReadInput>(
         "read",
         "Read one note by vault-relative path, title or alias.",
         slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
-        [](const ReadInput& in) { return read_note(in); }
-    );
+        [](const ReadInput &in) { return read_note(in); });
 
     app.tool<WriteInput>(
         "write",
         "Create a note, or replace one with overwrite: true.",
         slimr::ToolAnnotations{.readOnlyHint = false},
-        [](const WriteInput& in) { return write_note(in); }
-    );
+        [](const WriteInput &in) { return write_note(in); });
 
     app.tool<AppendInput>(
         "append",
         "Append text to a note, or under one of its headings.",
         slimr::ToolAnnotations{.readOnlyHint = false},
-        [](const AppendInput& in) { return append_note(in); }
-    );
+        [](const AppendInput &in) { return append_note(in); });
 
     app.tool<RenameInput>(
         "rename",
         "Rename or move a note and update every link to it.",
         slimr::ToolAnnotations{.readOnlyHint = false},
-        [](const RenameInput& in) { return rename_note(in); }
-    );
+        [](const RenameInput &in) { return rename_note(in); });
 
     app.tool<ListInput>(
         "list",
         "List notes in a vault folder, optionally recursively.",
         slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
-        [](const ListInput& in) { return list_notes(in); }
-    );
+        [](const ListInput &in) { return list_notes(in); });
 
     app.tool<SearchInput>(
         "search",
         "Search notes by keywords, folder, tag and front matter.",
         slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
-        [](const SearchInput& in) { return search_notes(in); }
-    );
+        [](const SearchInput &in) { return search_notes(in); });
 
     app.tool<StatusInput>(
         "status",
         "Show app version.",
         slimr::ToolOptions{.annotations = slimr::ToolAnnotations{.readOnlyHint = true}, .threadSafe = true},
-        [](const StatusInput& in) { return status(in); }
-    );
+        [](const StatusInput &in) { return status(in); });
 
     return app;
 }
