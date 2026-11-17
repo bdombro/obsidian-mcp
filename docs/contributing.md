@@ -1,0 +1,252 @@
+# obsidian-mcp: Contributing
+
+User installation and configuration are in [README.md](../README.md).
+
+<!-- cpp-templates:begin -->
+## Contents
+
+- [Develop and test](#develop-and-test)
+- [Unreleased libraries](#unreleased-libraries)
+- [Rules](#rules)
+- [PR, CI, and release flow](#pr-ci-and-release-flow)
+- [Maintainer setup](#maintainer-setup)
+- [Dependency bumps](#dependency-bumps)
+
+## Develop and test
+
+```bash
+just doctor
+just test
+just lint
+```
+
+Iterate on a single doctest case with `just test "<case>"` (Debug build with ASan + UBSan, `BUGSINK_DSN=""`). For `homebrew-mcp` repos, run `just test-mcp` as well.
+
+## Unreleased libraries
+
+vcpkg reads extra port dirs from `VCPKG_OVERLAY_PORTS`, and an overlay wins over the registry. Point it at a dir of symlinks, one per unreleased lib; manifests never change:
+
+```sh
+mkdir -p ~/.vcpkg/overlays/dev
+ln -s ~/dev/slimr/<lib>/ports/slimr-<lib> ~/.vcpkg/overlays/dev/slimr-<lib>
+export VCPKG_OVERLAY_PORTS=~/.vcpkg/overlays/dev
+just test
+```
+
+Remove the symlink (or `unset VCPKG_OVERLAY_PORTS`) to build against the released lib again. Keep the export out of shell startup files.
+
+## Rules
+
+- Never push directly to `main`; all changes land through squash-merged pull requests.
+- PRs touch no release files (`VERSION`, `CHANGELOG.md`, `versions/`, `Formula/*.rb`, `Casks/*.rb`).
+- Write the PR title (plus optional body) as the changelog entry; squash-merge turns it into one commit on `main`.
+- Sanitize everything (no secrets, tokens, DSNs, or personal data in commits, logs, or docs).
+- Run `just test` (ASan + UBSan) and `just lint` before opening or updating a PR.
+
+## PR, CI, and release flow
+
+- Every PR runs `test.yml`: a `gate` job skips macOS/Linux builds on docs-only PRs, and a single `ci` summary job gates merge.
+- Merging to `main` triggers `release.yml` (one release at a time). It collects squash commits since the last tag (skipping docs-only ranges), picks the bump from merged PR labels (`patch` default, or `release:minor` / `release:major`; agents must ask before adding labels), writes `VERSION`/`vcpkg.json`, `CHANGELOG.md` (and `vcpkg x-add-version` for libraries), commits as the GitHub App, tags `vX.Y.Z`, and publishes the GitHub Release (plus assets and `Formula/*.rb` / `Casks/*.rb` updates).
+- Pre-releases are a known option (tag/channel), not currently built.
+
+## Maintainer setup
+
+Direct pushes to `main` are blocked; `release.yml` uses a dedicated GitHub App so it can commit release metadata and formula updates without giving humans or agents an admin bypass.
+
+### 1. Create and install the release GitHub App
+
+Create one GitHub App (Settings -> Developer settings -> GitHub Apps):
+
+- **Homepage URL:** any URL (for example, the owner's GitHub profile)
+- **Callback / Setup URLs:** blank; **Webhook Active:** unchecked
+- **Repository permissions:** `Contents: Read and write`, `Metadata: Read-only`
+- **Where can this GitHub App be installed?:** Any account
+
+Record `<app-id>`, generate a private key, and save it locally if needed for manual recovery (it can always be regenerated):
+
+```sh
+chmod 600 ~/.ssh/<app-name>.private-key.pem
+```
+
+Install the App on each owner (org or user) and select the target repositories.
+
+### 2. Store Actions secrets
+
+Org-level (requires org owner and `admin:org` scope):
+
+```sh
+gh auth refresh -h github.com -s admin:org
+gh secret set RELEASE_APP_ID --org <owner> --visibility all --body "<app-id>"
+gh secret set RELEASE_APP_PRIVATE_KEY --org <owner> --visibility all < ~/.ssh/<app-name>.private-key.pem
+gh secret list --org <owner>
+```
+
+Per-repo (for user-owned repos or selected repos):
+
+```sh
+gh secret set RELEASE_APP_ID -R <owner>/<repo> --body "<app-id>"
+gh secret set RELEASE_APP_PRIVATE_KEY -R <owner>/<repo> < ~/.ssh/<app-name>.private-key.pem
+gh secret list -R <owner>/<repo>
+```
+
+`gh secret list` prints secret names only.
+
+### 3. Protect `main`
+
+Create (or `PUT /repos/<owner>/<repo>/rulesets/<ruleset-id>` to update) the `main` ruleset with App-only bypass, required `ci` check, squash-only merges, and no force push or deletion, then enforce squash-only merges on the repo:
+
+```sh
+gh api -X POST /repos/<owner>/<repo>/rulesets --input - <<'JSON'
+{
+  "name": "main",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] }
+  },
+  "bypass_actors": [
+    { "actor_id": <app-id>, "actor_type": "Integration", "bypass_mode": "always" }
+  ],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false,
+        "allowed_merge_methods": ["squash"]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": false,
+        "required_status_checks": [{ "context": "ci" }]
+      }
+    }
+  ]
+}
+JSON
+
+gh api -X PATCH /repos/<owner>/<repo> \
+  -F allow_squash_merge=true \
+  -F allow_merge_commit=false \
+  -F allow_rebase_merge=false
+
+gh api /repos/<owner>/<repo>/rulesets
+```
+
+### 4. Act as the App (emergency fix or manual release step)
+
+Use [`scripts/release-bot`](https://github.com/slimr-down-now/cpp-templates/blob/main/scripts/release-bot) with `RELEASE_APP_ID` and `RELEASE_APP_KEY` set (under the hood it signs a short-lived `RS256` App JWT, exchanges it for an installation token, and revokes the token on exit):
+
+```sh
+export RELEASE_APP_ID=<app-id>
+export RELEASE_APP_KEY=~/.ssh/<app-name>.private-key.pem
+
+release-bot push-main                  # push HEAD to origin main as the App
+release-bot gh release create ...      # run one gh command with GH_TOKEN set
+release-bot shell                      # subshell with GH_TOKEN; revokes on exit
+```
+
+Flags before the subcommand: `--owner <owner>` (token scope; defaults to `origin` owner) and `--repo <owner>/<repo>` (`push-main` target; defaults to `origin`).
+
+## Dependency bumps
+
+Bump a library baseline in `vcpkg-configuration.json` only when a bug fix, new API, or security fix requires it; otherwise wait for the next `just upgrade-deps`.
+<!-- cpp-templates:end -->
+
+## Repository tips
+
+Run the direct binary on a separate dev port:
+
+```bash
+./build/bin/obsidian-mcp http --port 20001
+```
+
+## App Architecture
+
+The standalone Streamable HTTP server is implemented in C++26 on `slimr-mcp`.
+
+```text
+plugins/obsidian-mcp/
+├── vcpkg.json                # Dependencies (`slimr-mcp[http]`, `slimr-test`)
+├── vcpkg-configuration.json  # Pinned vcpkg builtin and `slimr-*` registries
+├── CMakeLists.txt            # App/test targets linking `slimr::mcp_http`
+├── justfile                  # Thin CMake/Ninja, lint, test, and Homebrew lifecycle recipes
+├── VERSION                   # Single source of truth for `--version` and Bugsink `release`
+├── CHANGELOG.md              # Release notes generated by `release.yml`
+├── Formula/
+│   └── obsidian-mcp.rb       # Homebrew formula + service (`--log-file`, `etc/obsidian-mcp/env`)
+├── .cursor-plugin/
+│   └── plugin.json           # Cursor plugin manifest -> http://127.0.0.1:10001/mcp
+├── .claude-plugin/
+│   ├── plugin.json           # Claude Code plugin manifest -> http://127.0.0.1:10001/mcp
+│   └── marketplace.json      # Claude Code marketplace catalog
+├── docs/
+│   ├── conventions.md        # Note conventions served as `obsidian://conventions`
+│   └── contributing.md       # Contributor reference
+├── scripts/
+│   ├── doctor.sh             # Toolchain & environment check
+│   ├── formula-shared.ts     # Shared release/formula helpers
+│   ├── release.ts            # Version bump, changelog, formula & release helper
+│   └── test-mcp.ts           # Native MCP 2026-07-28 ephemeral HTTP conformance check
+├── triplets/
+│   ├── arm64-osx.cmake       # macOS 15.0 deployment target overlay triplet
+│   └── x64-linux.cmake       # Linux Homebrew llvm@23 libc++ overlay triplet
+├── src/
+│   ├── app.hpp               # Vault path isolation, frontmatter/tag parser, search/rename engine, and `make_obsidian_app()`
+│   ├── log_file.hpp          # `--log-file` redirection and 10 MiB log rotation
+│   └── main.cpp              # Standalone Streamable HTTP (`http`) entrypoint
+├── tests/
+│   ├── test_log_file.hpp     # Log rotation unit tests
+│   └── test_main.cpp         # Unit, temp-vault, HTTP, and concurrency tests
+└── build/bin/
+    └── obsidian-mcp          # Standalone release binary
+```
+
+### Libraries Used
+
+- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, Streamable HTTP (`cpp-httplib`), `/tools/<name>` HTTP endpoints, and `obsidian://conventions` resource registration.
+- **`<glaze/yaml.hpp>`:** YAML frontmatter parsing (`aliases`, `tags`, key-value filters).
+- **`<json.hpp>` (`glaze`):** RFC-8259 JSON serialization.
+- **`<bugsink.hpp>`:** Optional exception reporting configured with `BUGSINK_DSN`.
+- **`<test.hpp>` (`doctest`):** Temp-vault fixture testing with `-fsanitize=address,undefined`.
+- **C++26 Standard Library:** `<filesystem>`, `<shared_mutex>`, `<regex>` (wikilink/embed/markdown link rewriting).
+
+## Client Configuration
+
+### Streamable HTTP (`http://127.0.0.1:10001/mcp`)
+
+Start the background service (`just install` or `brew services start bdombro/obsidian-mcp/obsidian-mcp`), or run `./build/bin/obsidian-mcp http --port 20001` for local development.
+
+**Claude Code (`.mcp.json` / plugin config):**
+
+```json
+{
+  "mcpServers": {
+    "obsidian-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:10001/mcp"
+    }
+  }
+}
+```
+
+**Cursor (`.cursor/mcp.json` / plugin config):**
+
+```json
+{
+  "mcpServers": {
+    "obsidian-mcp": {
+      "url": "http://127.0.0.1:10001/mcp"
+    }
+  }
+}
+```
+
+Plugin marketplace manifests are included in `.cursor-plugin/plugin.json`, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`.

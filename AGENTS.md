@@ -2,17 +2,21 @@
 
 Written for: AI coding agents working in the `obsidian-mcp` C++26 plugin repository.
 
-`obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin and CLI built on `slimr-mcp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:10001/mcp`) and narrow JSON CLI invocation.
+`obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin built on `slimr-mcp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:10001/mcp` and `/tools/<name>`).
 
 <!-- cpp-templates:begin -->
+<!-- cpp-templates:commit c746b02c9f5b17b63c4921e6adff7fa8c5f6dc37 -->
+## Contributing
+
+Read the sections of [docs/contributing.md](docs/contributing.md) relevant to your change before editing.
+
 ## Tooling alignment
 
-Align this repository via the `cpp-templates` skill (`just check <template> .`). Keep repository-specific rules outside `<!-- cpp-templates:begin -->` and `<!-- cpp-templates:end -->`. Do not hand-edit verbatim template files or template recipes (repositories may add extra recipes or variables).
+Align this repository via the `cpp-templates` skill, which diffs `base/` and `templates/<template>/` since the `<!-- cpp-templates:commit <sha> -->` marker above and adapts changes while preserving repository customizations. Keep repository-specific rules outside `<!-- cpp-templates:begin -->` and `<!-- cpp-templates:end -->`.
 
 ## Edit-don't-rewrite
 
 - Make targeted edits and move files with `git mv`; never regenerate files from scratch or retype them from memory.
-- Template files arrive through `just new` or `just sync`.
 - Never delete, skip, or loosen tests to pass; if a test must change, explain why in the commit message.
 
 ## C++ Memory Safety
@@ -43,25 +47,21 @@ Iterate with `just test "<case>"` (Debug build with ASan + UBSan, `BUGSINK_DSN="
 
 ## Recipes
 
-- Core: `build`, `clean`, `configure`, `deps`, `doctor`, `fmt`, `lint`, `release`, `test [filter]`, `upgrade-deps`
+- Core: `build`, `clean`, `configure`, `deps`, `doctor`, `fmt`, `lint`, `test [filter]`, `upgrade-deps`
 - `homebrew-*`: `install`, `uninstall`
 - `homebrew-service` and `homebrew-mcp`: `daemon-logs`, `daemon-restart`, `daemon-start`, `daemon-status`, `daemon-stop`
 - `homebrew-mcp`: `test-mcp`
-- Dropped tooling (do not re-add): foreground runner, local tap/overlay symlinking, GitHub-branch/local-publish/dry-run helpers, standalone formula check, and JS formula helpers
+- Dropped tooling (do not re-add): foreground runner, local tap/overlay symlinking, GitHub-branch/local-publish/dry-run helpers, standalone formula check, `release` recipe, and JS formula helpers
 
 ## Changelog
 
-Add one line under `## Unreleased` in `CHANGELOG.md` for every change (use `Internal: ...` for internal changes).
+PRs touch no release files (`CHANGELOG.md`, `VERSION`, `versions/`). Write the PR title (and optional body) as the changelog entry; `release.yml` generates `CHANGELOG.md` from squash-merge commits after merge.
 
 ## Paths, env vars, and README
 
 - `<name>` in Homebrew paths is always the formula name, never a short XDG name: app data lives in `$(brew --prefix)/var/<name>`, config in `$(brew --prefix)/etc/<name>/`, and service secrets in `$(brew --prefix)/etc/<name>/env` (`chmod 600`, never in the public formula).
 - Secrets are env vars only.
-- Every `README.md` is end-user first: what it does, install, usage, env var table (name, required or optional, purpose), then links into `docs/` (`docs/development.md`, `docs/architecture.md`) for contributor workflow and architecture.
-
-## Remote tests
-
-Never run `test.yml` manually before `just release` (because `release` runs `test.yml` first). Run `test.yml` manually only when asked or to reproduce a Linux-only failure.
+- Every `README.md` is end-user first: what it does, install, usage, env var table (name, required or optional, purpose), then links into `docs/` (`docs/contributing.md`, `docs/architecture.md`) for contributor workflow and architecture.
 <!-- cpp-templates:end -->
 
 
@@ -92,7 +92,7 @@ with implemented behavior; do not claim unverified release or client support.
 | `Formula/obsidian-mcp.rb` | Public Homebrew formula and service (`10001`) | Embedded secrets or private download strategies |
 | `scripts/test-mcp.ts` | Native July `2026-07-28` ephemeral HTTP `server/discover` + `tools/list` verification | Touch live vault or run mutating tool calls |
 | `.cursor-plugin/` & `.claude-plugin/` | Cursor and Claude Code HTTP plugin manifests (`http://127.0.0.1:10001/mcp`) | Stdio/Node wrappers or secrets |
-| `tests/test_main.cpp` | Temp-vault, HTTP, CLI, and concurrency tests | Ever touch the live vault (`~/Documents/Notes`) |
+| `tests/test_main.cpp` | Temp-vault, HTTP, and concurrency tests | Ever touch the live vault (`~/Documents/Notes`) |
 
 ## Safety & App Conventions
 

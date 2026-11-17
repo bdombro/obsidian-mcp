@@ -11,7 +11,7 @@
 
 Search, read, and safely edit notes in your Obsidian vault through MCP (`2026-07-28`). Find notes by title, alias, tag, or content; rename a note and update its backlinks across the vault.
 
-Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:10001/mcp`) or as a narrow JSON **CLI** without a separate plugin, background indexer, or Node/V8 runtime.
+Unlike tools tied to the Obsidian UI, this MCP works directly with Markdown files, so Obsidian does not need to be running. It runs standalone over **Streamable HTTP** (`http://127.0.0.1:10001/mcp`, with `/tools/<name>` for direct HTTP calls) without a separate plugin, background indexer, or Node/V8 runtime.
 
 > **Client compatibility:** MCP **2026-07-28 only**; legacy clients cannot connect.
 > The workspace has been exercised with OpenCode v2.2.6 using explicit July
@@ -94,13 +94,13 @@ After starting the service, add this server to OpenCode v2.2.6's
 
 Use either an explicit server entry or a plugin manifest, not both.
 Alternative client schemas are in the
-[developer reference](docs/development.md). The compatibility notice above
+[contributing guide](docs/contributing.md). The compatibility notice above
 applies to every transport.
 
 
-## Tools & CLI Commands
+## Tools
 
-Every tool is exposed over Streamable HTTP (`obsidian-mcp http`) and on the CLI as `obsidian-mcp <tool> ['{"arg":"val"}']`.
+Every tool is exposed over MCP (`POST /mcp`) and as a direct HTTP endpoint (`POST /tools/<name>`) when running `obsidian-mcp http`.
 
 | Tool | Mutating | Description |
 | --- | --- | --- |
@@ -112,27 +112,35 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`) and on the CLI 
 | `rename` | Yes | Rename or move a note and automatically rewrite every `[[wikilink]]`, `![[embed]]`, `[[Note#Heading]]`, `[[Note|Alias]]`, and `[markdown](link.md)` reference across the entire vault. Supports `aliases`, `keepOldTitle`, and `dryRun: true`. |
 | `status` | No | Returns plugin version. |
 
-### CLI & Server Examples
+### HTTP & Server Examples
 
 ```bash
-# Search with quoted phrase and folder filter
-./build/bin/obsidian-mcp search '{"query":"\"open evening\" maynooth","folder":"Places","limit":5}'
-
-# Read by title or alias
-./build/bin/obsidian-mcp read '{"note":"Skoda Kodiaq"}'
-
-# Preview a rename across all vault backlinks without writing
-./build/bin/obsidian-mcp rename '{"from":"Old Title","to":"Places/New Title","dryRun":true}'
-
-# Append to a specific heading section
-./build/bin/obsidian-mcp append '{"note":"Home.md","heading":"Maintenance","text":"- Serviced boiler"}'
-
-# Status (no JSON argument needed when all fields are optional)
-./build/bin/obsidian-mcp status
-
 # Start Streamable HTTP server (defaults to 127.0.0.1:10001)
 ./build/bin/obsidian-mcp http
 ./build/bin/obsidian-mcp http --host 127.0.0.1 --port 20001
+
+# Search with quoted phrase and folder filter
+curl -sS -X POST http://127.0.0.1:10001/tools/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"\"open evening\" maynooth","folder":"Places","limit":5}'
+
+# Read by title or alias
+curl -sS -X POST http://127.0.0.1:10001/tools/read \
+  -H 'Content-Type: application/json' \
+  -d '{"note":"Skoda Kodiaq"}'
+
+# Preview a rename across all vault backlinks without writing
+curl -sS -X POST http://127.0.0.1:10001/tools/rename \
+  -H 'Content-Type: application/json' \
+  -d '{"from":"Old Title","to":"Places/New Title","dryRun":true}'
+
+# Append to a specific heading section
+curl -sS -X POST http://127.0.0.1:10001/tools/append \
+  -H 'Content-Type: application/json' \
+  -d '{"note":"Home.md","heading":"Maintenance","text":"- Serviced boiler"}'
+
+# Status
+curl -sS -X POST http://127.0.0.1:10001/tools/status -d '{}'
 ```
 
 ## Architecture & Vault Isolation
@@ -166,4 +174,4 @@ Configure service variables in `$(brew --prefix)/etc/obsidian-mcp/env` (`chmod 6
 
 ## Development
 
-For building from source, running tests, linting, and releasing, see [docs/development.md](docs/development.md).
+For building from source, running tests, linting, and contributing, see [docs/contributing.md](docs/contributing.md).
