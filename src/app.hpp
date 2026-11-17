@@ -1580,7 +1580,6 @@ inline slimr::PluginApp make_obsidian_app() {
     app.description = "Read, search, write and rename notes in the configured Obsidian vault over MCP.";
     app.instructions = std::string(MCP_INSTRUCTIONS);
     app.setBugsink("", "BUGSINK_DSN", "obsidian-mcp@" + std::string(VERSION));
-    app.allowCliTools = true;
 
     // MCP conventions resource
     app.resources.push_back(slimr::Resource{

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drop per-tool CLI; serve tool endpoints under `/tools/<name>` and `/tools/openapi.json` by default
+
 ## v2.2.1 - 2026-11-17
 
 - Upgrade `slimr-serve` to `0.3.0` and `slimr-mcp` to `0.2.1`: serve OpenAPI 3.1.0 at `GET /openapi.json` and `--openapi`, and bind `127.0.0.1` by default (pass `--host 0.0.0.0` to expose)

@@ -2,7 +2,7 @@
 
 Written for: AI coding agents working in the `obsidian-mcp` C++26 plugin repository.
 
-`obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin and CLI built on `slimr-mcp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:10001/mcp`) and narrow JSON CLI invocation.
+`obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin built on `slimr-mcp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:10001/mcp` and `/tools/<name>`).
 
 <!-- cpp-templates:begin -->
 <!-- cpp-templates:commit c746b02c9f5b17b63c4921e6adff7fa8c5f6dc37 -->
@@ -92,7 +92,7 @@ with implemented behavior; do not claim unverified release or client support.
 | `Formula/obsidian-mcp.rb` | Public Homebrew formula and service (`10001`) | Embedded secrets or private download strategies |
 | `scripts/test-mcp.ts` | Native July `2026-07-28` ephemeral HTTP `server/discover` + `tools/list` verification | Touch live vault or run mutating tool calls |
 | `.cursor-plugin/` & `.claude-plugin/` | Cursor and Claude Code HTTP plugin manifests (`http://127.0.0.1:10001/mcp`) | Stdio/Node wrappers or secrets |
-| `tests/test_main.cpp` | Temp-vault, HTTP, CLI, and concurrency tests | Ever touch the live vault (`~/Documents/Notes`) |
+| `tests/test_main.cpp` | Temp-vault, HTTP, and concurrency tests | Ever touch the live vault (`~/Documents/Notes`) |
 
 ## Safety & App Conventions
 

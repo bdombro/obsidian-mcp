@@ -170,7 +170,7 @@ Run the direct binary on a separate dev port:
 
 ## App Architecture
 
-The standalone Streamable HTTP server and JSON CLI are implemented in C++26 on `slimr-mcp`.
+The standalone Streamable HTTP server is implemented in C++26 on `slimr-mcp`.
 
 ```text
 plugins/obsidian-mcp/
@@ -201,17 +201,17 @@ plugins/obsidian-mcp/
 ├── src/
 │   ├── app.hpp               # Vault path isolation, frontmatter/tag parser, search/rename engine, and `make_obsidian_app()`
 │   ├── log_file.hpp          # `--log-file` redirection and 10 MiB log rotation
-│   └── main.cpp              # Standalone CLI and Streamable HTTP (`http`) entrypoint
+│   └── main.cpp              # Standalone Streamable HTTP (`http`) entrypoint
 ├── tests/
 │   ├── test_log_file.hpp     # Log rotation unit tests
-│   └── test_main.cpp         # Unit, temp-vault, HTTP, CLI, and concurrency tests
+│   └── test_main.cpp         # Unit, temp-vault, HTTP, and concurrency tests
 └── build/bin/
     └── obsidian-mcp          # Standalone release binary
 ```
 
 ### Libraries Used
 
-- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, narrow JSON CLI, Streamable HTTP (`cpp-httplib`), and `obsidian://conventions` resource registration.
+- **`<mcp.hpp>`, `<mcp_http.hpp>`, & `<reflect.hpp>`:** Typed tool definitions, compile-time JSON Schema generation, Streamable HTTP (`cpp-httplib`), `/tools/<name>` HTTP endpoints, and `obsidian://conventions` resource registration.
 - **`<glaze/yaml.hpp>`:** YAML frontmatter parsing (`aliases`, `tags`, key-value filters).
 - **`<json.hpp>` (`glaze`):** RFC-8259 JSON serialization.
 - **`<bugsink.hpp>`:** Optional exception reporting configured with `BUGSINK_DSN`.

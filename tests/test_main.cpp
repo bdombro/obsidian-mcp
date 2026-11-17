@@ -719,10 +719,12 @@ TEST_SUITE("app / mcp") {
             }
         };
 
-        auto http_post = [](uint16_t port,
-                            std::string_view method,
-                            std::string_view mcpName,
-                            const Json &body) -> std::pair<int, std::string> {
+        auto http_raw = [](uint16_t port,
+                           std::string_view httpMethod,
+                           std::string_view target,
+                           std::string_view bodyStr = "",
+                           std::string_view mcpMethod = "",
+                           std::string_view mcpName = "") -> std::pair<int, std::string> {
             int fd = ::socket(AF_INET, SOCK_STREAM, 0);
             if (fd < 0)
                 return {0, ""};
@@ -740,20 +742,25 @@ TEST_SUITE("app / mcp") {
                 return {0, ""};
             }
 
-            std::string bodyStr = slimr::write_json(body);
             std::ostringstream os;
-            os << "POST /mcp HTTP/1.1\r\n"
+            os << httpMethod << " " << target << " HTTP/1.1\r\n"
                << "Host: 127.0.0.1:" << port << "\r\n"
-               << "Connection: close\r\n"
-               << "Content-Type: application/json\r\n"
-               << "Accept: application/json, text/event-stream\r\n"
-               << "MCP-Protocol-Version: " << slimr::kMcpProtocolVersion << "\r\n"
-               << "Mcp-Method: " << method << "\r\n";
-            if (!mcpName.empty()) {
-                os << "Mcp-Name: " << mcpName << "\r\n";
+               << "Connection: close\r\n";
+            if (!mcpMethod.empty()) {
+                os << "Accept: application/json, text/event-stream\r\n"
+                   << "MCP-Protocol-Version: " << slimr::kMcpProtocolVersion << "\r\n"
+                   << "Mcp-Method: " << mcpMethod << "\r\n";
+                if (!mcpName.empty()) {
+                    os << "Mcp-Name: " << mcpName << "\r\n";
+                }
             }
-            os << "Content-Length: " << bodyStr.size() << "\r\n\r\n"
-               << bodyStr;
+            if (httpMethod == "POST") {
+                os << "Content-Type: application/json\r\n"
+                   << "Content-Length: " << bodyStr.size() << "\r\n\r\n"
+                   << bodyStr;
+            } else {
+                os << "\r\n";
+            }
             std::string rawReq = os.str();
             size_t sent = 0;
             while (sent < rawReq.size()) {
@@ -779,6 +786,13 @@ TEST_SUITE("app / mcp") {
             return {status, rawResp.substr(hdrEnd + 4)};
         };
 
+        auto http_post = [&](uint16_t port,
+                             std::string_view method,
+                             std::string_view mcpName,
+                             const Json &body) -> std::pair<int, std::string> {
+            return http_raw(port, "POST", "/mcp", slimr::write_json(body), method, mcpName);
+        };
+
         auto make_req = [](int id, std::string_view method, Json params = slimr::json_obj()) {
             Json meta = slimr::json_obj();
             meta["io.modelcontextprotocol/protocolVersion"] = std::string(slimr::kMcpProtocolVersion);
@@ -800,19 +814,28 @@ TEST_SUITE("app / mcp") {
         TestEnv xdg("XDG_CONFIG_HOME", nullptr);
         TestEnv home("HOME", vault.root.c_str());
 
-        // 1. CLI status via enable_http
+        // 1. CLI rejects per-tool commands and removed flags
         {
             auto app = make_obsidian_app();
             slimr::enable_http(app, slimr::HttpServerOptions{.host = "127.0.0.1", .port = 10001});
+            std::stringstream errSs;
+            auto *oldErr = std::cerr.rdbuf(errSs.rdbuf());
             char a0[] = "obsidian-mcp";
             char s1[] = "status";
             char *statusArgv[] = {a0, s1, nullptr};
-            std::stringstream ss;
-            auto *oldOut = std::cout.rdbuf(ss.rdbuf());
-            int rc = app.run(2, statusArgv);
-            std::cout.rdbuf(oldOut);
-            CHECK(rc == 0);
-            CHECK(ss.str().find(std::string("\"version\":\"") + OBSIDIAN_APP_VERSION + "\"") != std::string::npos);
+            CHECK(app.run(2, statusArgv) != 0);
+
+            char f1[] = "-"
+                        "-openapi";
+            char *openapiArgv[] = {a0, f1, nullptr};
+            CHECK(app.run(2, openapiArgv) != 0);
+
+            char f2[] = "http";
+            char f3[] = "-"
+                        "-tools";
+            char *toolsArgv[] = {a0, f2, f3, nullptr};
+            CHECK(app.run(3, toolsArgv) != 0);
+            std::cerr.rdbuf(oldErr);
         }
 
         // 3. Ephemeral HTTP server
@@ -867,6 +890,25 @@ TEST_SUITE("app / mcp") {
             auto parsed = slimr::parse_json<Json>(body);
             REQUIRE(parsed.has_value());
             CHECK((*parsed)["result"]["contents"][0]["text"].get<std::string>().find("# Obsidian note conventions") != std::string::npos);
+        }
+
+        // /tools surface on by default, root tool routes 404
+        {
+            auto [stStatus, bodyStatus] = http_raw(port, "POST", "/tools/status", "{}");
+            CHECK(stStatus == 200);
+            CHECK(bodyStatus.find(std::string("\"version\":\"") + OBSIDIAN_APP_VERSION + "\"") != std::string::npos);
+
+            auto [stOpenapi, bodyOpenapi] = http_raw(port, "GET", "/tools/openapi.json");
+            CHECK(stOpenapi == 200);
+            auto parsedOpenapi = slimr::parse_json<Json>(bodyOpenapi);
+            REQUIRE(parsedOpenapi.has_value());
+            CHECK((*parsedOpenapi)["paths"].contains("/tools/status"));
+
+            auto [stRootOpenapi, _1] = http_raw(port, "GET", "/openapi.json");
+            CHECK(stRootOpenapi == 404);
+
+            auto [stRootTool, _2] = http_raw(port, "POST", "/status", "{}");
+            CHECK(stRootTool == 404);
         }
 
         // Concurrent HTTP callers (readers + writers)
