@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Upgrade `slimr-serve` to `0.3.0` and `slimr-mcp` to `0.2.1`: serve OpenAPI 3.1.0 at `GET /openapi.json` and `--openapi`, and bind `127.0.0.1` by default (pass `--host 0.0.0.0` to expose)
+- Docs: add "Develop against an unreleased lib" section to `docs/development.md`
+- Internal: check `GET /openapi.json` in `scripts/test-mcp.ts`
+
 ## v2.2.0 - 2026-11-16
 
 - Migrate to `slimr-serve` typed handlers (`outputSchema` / `structuredContent`) and drop stdio `mcp` mode.

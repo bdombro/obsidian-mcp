@@ -70,7 +70,7 @@ brew services restart bdombro/obsidian-mcp/obsidian-mcp
 brew services stop bdombro/obsidian-mcp/obsidian-mcp
 ```
 
-The endpoint is `http://127.0.0.1:10001/mcp` (the service binds `0.0.0.0:10001` by default). Service working directory is `$(brew --prefix)/var/obsidian-mcp`, and logs are written to `$(brew --prefix)/var/log/obsidian-mcp.log` (rotated at 10 MiB, keeping one `.1` file). To run in the foreground instead, use `obsidian-mcp http` (or `./build/bin/obsidian-mcp http --port 20001` from a source checkout). Do not run the foreground server and service on the same port.
+The endpoint is `http://127.0.0.1:10001/mcp` (the service binds `127.0.0.1:10001` by default; pass `--host 0.0.0.0` to expose). Service working directory is `$(brew --prefix)/var/obsidian-mcp`, and logs are written to `$(brew --prefix)/var/log/obsidian-mcp.log` (rotated at 10 MiB, keeping one `.1` file). To run in the foreground instead, use `obsidian-mcp http` (or `./build/bin/obsidian-mcp http --port 20001` from a source checkout). Do not run the foreground server and service on the same port.
 
 
 ## Connect Your Agent
@@ -130,7 +130,7 @@ Every tool is exposed over Streamable HTTP (`obsidian-mcp http`) and on the CLI 
 # Status (no JSON argument needed when all fields are optional)
 ./build/bin/obsidian-mcp status
 
-# Start Streamable HTTP server (defaults to 0.0.0.0:10001)
+# Start Streamable HTTP server (defaults to 127.0.0.1:10001)
 ./build/bin/obsidian-mcp http
 ./build/bin/obsidian-mcp http --host 127.0.0.1 --port 20001
 ```

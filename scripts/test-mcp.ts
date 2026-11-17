@@ -97,6 +97,15 @@ async function runHttpChecks(): Promise<{ serverName: string; toolCount: number 
     const getResp = await fetch(endpoint, { method: "GET" });
     assert.equal(getResp.status, 405, `HTTP GET ${endpoint} should return 405`);
 
+    const openapiUrl = new URL("/openapi.json", endpoint).toString();
+    const openapiResp = await fetch(openapiUrl, { method: "GET" });
+    assert.equal(openapiResp.status, 200, `HTTP GET ${openapiUrl} status: ${openapiResp.status}`);
+    const openapi = await openapiResp.json();
+    assert.equal(openapi?.openapi, "3.1.0", `HTTP GET ${openapiUrl} must return OpenAPI 3.1.0`);
+    for (const name of expectedTools) {
+      assert(openapi?.paths?.[`/${name}`]?.post, `HTTP GET ${openapiUrl} missing POST /${name}`);
+    }
+
     const postMcp = async (method: string, body: unknown) => {
       const resp = await fetch(endpoint, {
         method: "POST",
