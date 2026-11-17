@@ -90,7 +90,7 @@ lint: (configure "Debug")
 # Release on GitHub (tests per platform, version bump, changelog, build, formula, tag), then pull the release commit
 release bump:
     gh workflow run release.yml -f bump="$1"
-    sleep 5; id="$(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')"; if [ -t 1 ]; then gh run watch --compact --exit-status "$id"; else gh run watch --exit-status "$id" >/dev/null; fi || { gh run view "$id" --log-failed | tail -n 100; exit 1; }
+    sleep 5; id="$(gh run list --workflow release.yml --limit 1 --json databaseId -q '.[0].databaseId')"; if [ -t 1 ]; then gh run watch --interval 30 --compact --exit-status "$id"; else gh run watch --interval 30 --exit-status "$id" >/dev/null; fi || { gh run view "$id" --log-failed | tail -n 100; exit 1; }
     git pull --ff-only
 
 # Debug build with ASan + UBSan, then run all tests, or only doctest cases matching filter
