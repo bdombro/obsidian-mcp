@@ -94,7 +94,7 @@ After starting the service, add this server to OpenCode v2.2.6's
 
 Use either an explicit server entry or a plugin manifest, not both.
 Alternative client schemas are in the
-[developer reference](docs/development.md). The compatibility notice above
+[contributing guide](docs/contributing.md). The compatibility notice above
 applies to every transport.
 
 
@@ -166,4 +166,4 @@ Configure service variables in `$(brew --prefix)/etc/obsidian-mcp/env` (`chmod 6
 
 ## Development
 
-For building from source, running tests, linting, and releasing, see [docs/development.md](docs/development.md).
+For building from source, running tests, linting, and contributing, see [docs/contributing.md](docs/contributing.md).

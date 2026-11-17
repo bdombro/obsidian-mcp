@@ -5,6 +5,10 @@ Written for: AI coding agents working in the `obsidian-mcp` C++26 plugin reposit
 `obsidian-mcp` is a native C++26 MCP `2026-07-28` plugin and CLI built on `slimr-mcp` that reads, searches, lists, writes, appends, and renames Markdown notes in the configured Obsidian vault (`$HOME/Documents/Notes` by default). It runs as a standalone binary (`build/bin/obsidian-mcp`) supporting Streamable HTTP (`http://127.0.0.1:10001/mcp`) and narrow JSON CLI invocation.
 
 <!-- cpp-templates:begin -->
+## Contributing
+
+Read the sections of [docs/contributing.md](docs/contributing.md) relevant to your change before editing.
+
 ## Tooling alignment
 
 Align this repository via the `cpp-templates` skill (`just check <template> .`). Keep repository-specific rules outside `<!-- cpp-templates:begin -->` and `<!-- cpp-templates:end -->`. Do not hand-edit verbatim template files or template recipes (repositories may add extra recipes or variables).
@@ -43,25 +47,21 @@ Iterate with `just test "<case>"` (Debug build with ASan + UBSan, `BUGSINK_DSN="
 
 ## Recipes
 
-- Core: `build`, `clean`, `configure`, `deps`, `doctor`, `fmt`, `lint`, `release`, `test [filter]`, `upgrade-deps`
+- Core: `build`, `clean`, `configure`, `deps`, `doctor`, `fmt`, `lint`, `test [filter]`, `upgrade-deps`
 - `homebrew-*`: `install`, `uninstall`
 - `homebrew-service` and `homebrew-mcp`: `daemon-logs`, `daemon-restart`, `daemon-start`, `daemon-status`, `daemon-stop`
 - `homebrew-mcp`: `test-mcp`
-- Dropped tooling (do not re-add): foreground runner, local tap/overlay symlinking, GitHub-branch/local-publish/dry-run helpers, standalone formula check, and JS formula helpers
+- Dropped tooling (do not re-add): foreground runner, local tap/overlay symlinking, GitHub-branch/local-publish/dry-run helpers, standalone formula check, `release` recipe, and JS formula helpers
 
 ## Changelog
 
-Add one line under `## Unreleased` in `CHANGELOG.md` for every change (use `Internal: ...` for internal changes).
+PRs touch no release files (`CHANGELOG.md`, `VERSION`, `versions/`). Write the PR title (and optional body) as the changelog entry; `release.yml` generates `CHANGELOG.md` from squash-merge commits after merge.
 
 ## Paths, env vars, and README
 
 - `<name>` in Homebrew paths is always the formula name, never a short XDG name: app data lives in `$(brew --prefix)/var/<name>`, config in `$(brew --prefix)/etc/<name>/`, and service secrets in `$(brew --prefix)/etc/<name>/env` (`chmod 600`, never in the public formula).
 - Secrets are env vars only.
-- Every `README.md` is end-user first: what it does, install, usage, env var table (name, required or optional, purpose), then links into `docs/` (`docs/development.md`, `docs/architecture.md`) for contributor workflow and architecture.
-
-## Remote tests
-
-Never run `test.yml` manually before `just release` (because `release` runs `test.yml` first). Run `test.yml` manually only when asked or to reproduce a Linux-only failure.
+- Every `README.md` is end-user first: what it does, install, usage, env var table (name, required or optional, purpose), then links into `docs/` (`docs/contributing.md`, `docs/architecture.md`) for contributor workflow and architecture.
 <!-- cpp-templates:end -->
 
 
